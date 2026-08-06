@@ -7,7 +7,13 @@ def fetch_stock_data(ticker: str, period: str = "5y") -> pd.DataFrame:
     """Pull historical stock data from yfinance."""
     stock = yf.Ticker(ticker)
     # prepost=False, repair=True forces fresh data, no cache
-    df = stock.history(period=period, repair=True)
+    df = stock.history(
+        period=period,
+        interval="1d",
+        auto_adjust=True,
+        repair=False,
+        timeout=30,
+    )
 
     if df.empty:
         raise ValueError(f"No data found for ticker: {ticker}")
