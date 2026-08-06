@@ -49,11 +49,22 @@ class PredictionResponse(BaseModel):
 
 class TrainResponse(BaseModel):
     ticker: str
-    mae: float
-    rmse: float
-    directional_accuracy_pct: float
+
+    rf_mae_pct_points: float
+    rf_rmse_pct_points: float
+    rf_directional_accuracy_pct: float
+
+    baseline_mae_pct_points: float
+    baseline_rmse_pct_points: float
+    baseline_directional_accuracy_pct: float
+
+    mae_improvement_over_baseline_pct: float
+    rmse_improvement_over_baseline_pct: float
+
     training_samples: int
+    purge_gap_samples: int
     test_samples: int
+
     message: str
 
 class HistoryResponse(BaseModel):
