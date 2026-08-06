@@ -172,6 +172,41 @@ During training, the application calculates:
 
 The project uses a chronological train-test split to avoid randomly mixing future and past market observations.
 
+## Model Evaluation
+
+The Random Forest is evaluated against a naive no-change baseline.
+
+The baseline always predicts a future return of 0%, meaning that the stock's future price will be unchanged from its current price. Both models are evaluated on the same held-out chronological test set.
+
+Because the target represents the return 252 trading days into the future, the evaluation uses a 252-observation purge gap between the training and testing sets. This prevents training labels from using future prices that fall inside the test period.
+
+### Baseline Comparison
+
+Evaluation date: August 2026  
+Prediction horizon: 252 trading days  
+Historical data period: Approximately 10 years
+
+| Ticker | Model                    | MAE, return percentage points | RMSE, return percentage points | Directional accuracy |
+| ------ | ------------------------ | ----------------------------: | -----------------------------: | -------------------: |
+| AAPL   | Random Forest            |                         17.75 |                          21.21 |               77.24% |
+| AAPL   | Naive no-change baseline |                         21.70 |                          26.75 |                8.72% |
+
+The Random Forest reduced MAE by 18.21% and RMSE by 20.72% compared with the naive no-change baseline. It also achieved 77.24% directional accuracy, compared with 8.72% for the baseline.
+
+The evaluation used 1,397 training observations, a 252-observation purge gap, and 413 held-out test observations. The purge gap reduces leakage caused by overlapping one-year return targets.
+
+Although the Random Forest outperformed the baseline in this historical test, the results come from one ticker and one held-out period. They should not be interpreted as proof that the model will generalize to future market conditions.
+
+### Interpretation
+
+A model should not be considered useful merely because its error values appear small. Stock-return observations are autocorrelated, and overlapping future-return targets can produce misleading evaluation results.
+
+The baseline comparison answers a more meaningful question: does the Random Forest outperform the simple assumption that the stock will not change?
+
+Positive MAE and RMSE improvement percentages indicate that the Random Forest outperformed the no-change baseline. Negative improvement percentages indicate that the baseline performed better.
+
+These results describe historical held-out performance only. They do not demonstrate that the model can reliably predict future market prices.
+
 ## Limitations
 
 - Stock prices are influenced by events that historical price data cannot fully predict.
