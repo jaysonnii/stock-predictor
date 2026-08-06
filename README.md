@@ -1,7 +1,7 @@
 # Stock Predictor
 
 [Live Demo](https://stockpredictor-nwgu.onrender.com) · [API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
-
+[![CI](https://github.com/jaysonnii/stockPredictor/actions/workflows/ci.yml/badge.svg)](https://github.com/jaysonnii/stockPredictor/actions/workflows/ci.yml)
 A machine-learning stock price forecasting application built with Python, FastAPI, scikit-learn, yfinance, and a browser-based frontend.
 
 The application downloads historical market data, engineers technical indicators, trains a Random Forest regression model, and generates estimated future stock prices and returns.
