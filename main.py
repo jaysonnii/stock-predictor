@@ -83,6 +83,10 @@ class StockInfoResponse(BaseModel):
     fifty_two_week_high: float
     fifty_two_week_low: float
 
+@app.get("/health", tags=["system"])
+def health_check():
+    """Return the current API health status."""
+    return {"status": "ok"}
 
 @app.get("/")
 def root():
