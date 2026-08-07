@@ -1,6 +1,6 @@
 # Stock Predictor
 
-[![Python CI](https://github.com/jaysonnii/stockPredictor/actions/workflows/python-ci.yml/badge.svg)](https://github.com/jaysonnii/stockPredictor/actions/workflows/python-ci.yml)
+[![Python CI](https://github.com/jaysonnii/stock-predictor/actions/workflows/python-ci.yml/badge.svg)](https://github.com/jaysonnii/stock-predictor/actions/workflows/python-ci.yml)
 
 [Live Demo](https://stockpredictor-nwgu.onrender.com) · [API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
 
@@ -94,7 +94,7 @@ The model uses:
 ## Project Structure
 
 ```text
-stockPredictor/
+stock-predictor/
 ├── .github/
 │   └── workflows/
 │       └── python-ci.yml
@@ -119,7 +119,7 @@ The `models/` directory is generated locally when models are trained and is excl
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/jaysonnii/stockPredictor.git
+git clone https://github.com/jaysonnii/stock-predictor.git
 cd stockPredictor
 ```
 
