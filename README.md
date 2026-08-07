@@ -1,6 +1,6 @@
 # Stock Predictor
 
-[![CI](https://github.com/jaysonnii/stockPredictor/actions/workflows/ci.yml/badge.svg)](https://github.com/jaysonnii/stockPredictor/actions/workflows/ci.yml)
+[![Python CI](https://github.com/jaysonnii/stockPredictor/actions/workflows/python-ci.yml/badge.svg)](https://github.com/jaysonnii/stockPredictor/actions/workflows/python-ci.yml)
 
 [Live Demo](https://stockpredictor-nwgu.onrender.com) · [API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
 
