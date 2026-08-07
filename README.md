@@ -4,6 +4,12 @@
 
 [Live Demo](https://stockpredictor-nwgu.onrender.com) · [API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
 
+## Live Preview
+
+[![Stock Predictor application preview](docs/stock-predictor-demo.png)](https://stockpredictor-nwgu.onrender.com)
+
+Click the preview to open the live application.
+
 A machine-learning stock forecasting application built with Python, FastAPI, scikit-learn, yfinance, and a browser-based frontend.
 
 The application downloads historical market data, engineers technical indicators, trains a Random Forest regression model, and generates estimated future stock prices and returns.
