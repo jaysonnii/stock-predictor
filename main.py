@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime
 import os
 
-from model import predict_price, train_model
+from model import predict_price, predict_price_with_fallback, train_model
 from data import fetch_stock_data
 
 app = FastAPI(
@@ -37,6 +37,9 @@ class MultiPredictionResponse(BaseModel):
     ticker: str
     current_price: float
     predictions: list[HorizonPrediction]
+    requested_horizon_days: int
+    model_horizon_days: int
+    fallback_used: bool
     timestamp: str
 
 class PredictionResponse(BaseModel):
@@ -99,19 +102,21 @@ def root():
 def get_all_predictions(ticker: str):
     """
     Get 1-month, 6-month, and 1-year predictions.
-    Only the 1-year model is trained via ML.
-    Shorter horizons are scaled proportionally from the 1-year trend,
-    which keeps all three numbers logically consistent.
+    The ML model runs at the longest horizon the stock's history supports
+    (falls back to 6 months, 3 months, then 1 month for newer tickers).
+    Shorter horizons are scaled proportionally from that trend.
+    Check fallback_used and model_horizon_days to see which horizon was used.
     """
     ticker = ticker.upper().strip()
     try:
-        # Only train/use the reliable 1-year model
-        result = predict_price(ticker, prediction_days=252)
+        result = predict_price_with_fallback(ticker, prediction_days=252)
+        model_days = result["prediction_horizon_days"]
         current_price = result["current_price"]
-        price_1yr = result["predicted_price_1yr"]
+        model_price = result["predicted_price_1yr"]
 
-        # Annual return rate implied by the model
-        annual_return = (price_1yr - current_price) / current_price
+        # Annual return rate implied by the model's own horizon
+        model_return = (model_price - current_price) / current_price
+        annual_return = model_return * (252 / model_days)
 
         # Scale proportionally for shorter horizons
         def scale(trading_days):
@@ -124,16 +129,25 @@ def get_all_predictions(ticker: str):
         price_1m, pct_1m = scale(21)
         price_6m, pct_6m = scale(126)
 
+        # If the model ran on a shorter horizon, label the top row honestly
+        if result["fallback_used"]:
+            top_label = f"{model_days} Days (model)"
+        else:
+            top_label = "1 Year"
+
         predictions = [
             HorizonPrediction(horizon="1 Month",  days=21,  predicted_price=price_1m,  expected_return_pct=pct_1m),
             HorizonPrediction(horizon="6 Months", days=126, predicted_price=price_6m,  expected_return_pct=pct_6m),
-            HorizonPrediction(horizon="1 Year",   days=252, predicted_price=price_1yr, expected_return_pct=result["expected_return_pct"]),
+            HorizonPrediction(horizon=top_label,  days=model_days, predicted_price=model_price, expected_return_pct=result["expected_return_pct"]),
         ]
 
         return MultiPredictionResponse(
             ticker=ticker,
             current_price=current_price,
             predictions=predictions,
+            requested_horizon_days=result["requested_horizon_days"],
+            model_horizon_days=model_days,
+            fallback_used=result["fallback_used"],
             timestamp=datetime.utcnow().isoformat(),
         )
     except ValueError as e:
