@@ -197,7 +197,7 @@
         </div>
         <div class="card">
           <h2>High dividend ETFs</h2>
-          <div class="hint">Top yields from the live scan</div>
+          <div class="hint">Your ETF list, at or above the cutoff</div>
           <div id="ovDividends" style="margin-top:12px"></div>
         </div>
       </div>
@@ -264,13 +264,17 @@
         <div class="top-inline">
           <div>
             <h2>High dividend ETFs</h2>
-            <div class="hint" id="divStatus">Loading...</div>
+            <div class="hint" id="divStatus">Add an ETF below to check its live yield.</div>
           </div>
           <label class="hint" style="display:flex;align-items:center;gap:8px">
             Min yield %
-            <input id="minYield" type="number" step="0.5" min="0" value="4" style="width:90px">
+            <input id="minYield" type="number" step="0.5" min="0" value="10" style="width:90px">
           </label>
         </div>
+        <form class="chips" id="etfForm" autocomplete="off" style="margin-bottom:16px">
+          <input id="etfTicker" placeholder="ETF ticker, e.g. QQQI" maxlength="12" style="width:200px">
+          <button class="btn lime" type="submit">Add ETF</button>
+        </form>
         <div id="divTable"></div>
       </div>
     </section>
@@ -322,7 +326,7 @@
     overview: ['Overview', 'Your holdings and model forecasts'],
     holdings: ['My holdings', 'Saved in this browser'],
     predict: ['Predictions', 'Model forecasts for any ticker'],
-    dividends: ['High dividend ETFs', 'Scanned live from US ETFs'],
+    dividends: ['High dividend ETFs', 'Your list, checked live'],
   };
   function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
@@ -497,37 +501,60 @@
   }
 
   // dividends
-  function dividendTable(rows, small) {
-    if (!rows.length) return '<div class="empty">Nothing found yet.</div>';
-    const head = `<tr><th>Ticker</th>${small ? '' : '<th>Name</th>'}<th class="num">Yield</th></tr>`;
-    const body = rows.map(r => `
+  function dividendTable(rows, small, min) {
+    if (!rows.length) return `<div class="empty">${small ? 'Nothing above the cutoff yet.' : 'Add an ETF above to check its yield.'}</div>`;
+    const head = `<tr><th>Ticker</th>${small ? '' : '<th>Name</th>'}<th class="num">Yield</th>${small ? '' : '<th></th>'}</tr>`;
+    const body = rows.map(r => {
+      const y = r.dividend_yield_pct;
+      const yieldCell = y == null ? '<span class="hint">no data</span>' : `<span class="${y >= min ? 'up' : 'hint'}">${fmt(y)}%</span>`;
+      return `
       <tr class="click" data-open="${esc(r.ticker)}">
         <td><b>${esc(r.ticker)}</b></td>
         ${small ? '' : `<td>${esc(r.name)}</td>`}
-        <td class="num up">${fmt(r.dividend_yield_pct)}%</td>
-      </tr>`).join('');
+        <td class="num">${yieldCell}</td>
+        ${small ? '' : `<td class="num"><button class="btn ghost" data-unwatch="${esc(r.ticker)}">Remove</button></td>`}
+      </tr>`;
+    }).join('');
     return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
+  // your ETF list: tickers you add by hand, checked for live yield
+  let etfWatch = load('etfWatch', []);
+
   async function loadDividends() {
-    clearTimeout(divTimer);
-    const min = Number($('minYield').value) || 4;
+    const min = Number($('minYield').value) || 10;
+    if (!etfWatch.length) {
+      $('divStatus').textContent = 'Add an ETF below to check its live yield.';
+      $('divTable').innerHTML = dividendTable([], false, min);
+      $('ovDividends').innerHTML = dividendTable([], true, min);
+      return;
+    }
+    $('divStatus').textContent = `Checking ${etfWatch.length} ETF${etfWatch.length === 1 ? '' : 's'}...`;
     try {
-      const d = await api(`/dividend-etfs?min_yield_pct=${min}`);
-      if (d.status === 'error') {
-        $('divStatus').textContent = 'The ETF scan failed. Restart the server to try again.';
-        $('ovDividends').innerHTML = '<div class="empty">Scan failed.</div>';
-        return;
-      }
-      $('divStatus').textContent = d.status === 'ready'
-        ? `${d.etfs.length} ETFs at ${min}% or more, out of ${d.total} checked.`
-        : `Scanning: ${d.scanned} of ${d.total} checked, ${d.etfs.length} found so far.`;
-      $('divTable').innerHTML = dividendTable(d.etfs, false);
-      $('ovDividends').innerHTML = dividendTable(d.etfs.slice(0, 6), true);
-      if (d.status !== 'ready') divTimer = setTimeout(loadDividends, 15000);
+      const d = await api(`/dividend-etfs?min_yield_pct=${min}&tickers=${encodeURIComponent(etfWatch.join(','))}`);
+      const byTicker = Object.fromEntries(d.checked.map(r => [r.ticker, r]));
+      const rows = etfWatch.map(t => byTicker[t] || { ticker: t, name: 'no yield data from Yahoo', dividend_yield_pct: null });
+      rows.sort((a, b) => (b.dividend_yield_pct ?? -1) - (a.dividend_yield_pct ?? -1));
+      $('divStatus').textContent = `${d.etfs.length} of ${etfWatch.length} at ${min}% or more.`;
+      $('divTable').innerHTML = dividendTable(rows, false, min);
+      $('ovDividends').innerHTML = dividendTable(d.etfs.slice(0, 6), true, min);
     } catch (e) {
       $('divStatus').textContent = 'Could not load: ' + e.message;
     }
+  }
+
+  function watchEtf(t) {
+    t = clean(t);
+    if (!t || etfWatch.includes(t)) return;
+    etfWatch = etfWatch.concat(t);
+    save('etfWatch', etfWatch);
+    loadDividends();
+  }
+
+  function unwatchEtf(t) {
+    etfWatch = etfWatch.filter(x => x !== t);
+    save('etfWatch', etfWatch);
+    loadDividends();
   }
 
   // events
@@ -541,6 +568,8 @@
   document.addEventListener('click', e => {
     const rm = e.target.closest('[data-remove]');
     if (rm) { removeHolding(rm.dataset.remove); return; }
+    const uw = e.target.closest('[data-unwatch]');
+    if (uw) { unwatchEtf(uw.dataset.unwatch); return; }
     const op = e.target.closest('[data-open]');
     if (op) openPredict(op.dataset.open);
   });
@@ -564,6 +593,12 @@
 
   $('period').addEventListener('change', () => openPredict(selected));
   $('minYield').addEventListener('change', loadDividends);
+
+  $('etfForm').addEventListener('submit', e => {
+    e.preventDefault();
+    watchEtf($('etfTicker').value);
+    $('etfTicker').value = '';
+  });
 
   $('quick').innerHTML = POPULAR.map(([t, n]) => `<button class="chip" data-open="${t}">${t} · ${esc(n)}</button>`).join('');
 
