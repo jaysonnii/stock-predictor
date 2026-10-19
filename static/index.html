@@ -775,6 +775,13 @@
     </div>
   </div>
 
+  <div class="popular">
+    <div class="popular-label">high dividend etfs (4%+ yield, checked live)</div>
+    <div class="popular-grid" id="divGrid">
+      <span class="popular-label">loading (first load can take about 30 seconds)...</span>
+    </div>
+  </div>
+
   <div class="error" id="error"></div>
   <div class="loading" id="loading"><span id="loadingMsg">Fetching data...</span></div>
 
@@ -1371,6 +1378,27 @@
     document.getElementById('valBox').style.display = 'block';
   }
 
+
+  // ── High dividend ETFs (found live by the backend) ──────────────────────
+  async function loadDividendEtfs() {
+    const grid = document.getElementById('divGrid');
+    try {
+      const res = await fetch('/dividend-etfs?min_yield_pct=4');
+      if (!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      if (!data.etfs || data.etfs.length === 0) {
+        grid.innerHTML = '<span class="popular-label">no ETFs above 4% right now</span>';
+        return;
+      }
+      grid.innerHTML = data.etfs.map(e =>
+        `<button class="pop-btn" onclick="quickLook('${e.ticker}')">${e.ticker} — ${e.dividend_yield_pct.toFixed(2)}%</button>`
+      ).join('');
+    } catch (err) {
+      grid.innerHTML = '<span class="popular-label">could not load dividend ETFs</span>';
+    }
+  }
+
+  loadDividendEtfs();
 
   function toggleExp(id) {
     const box = document.getElementById(id);
