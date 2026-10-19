@@ -6,7 +6,6 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import os
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -210,42 +209,22 @@ def get_history(ticker: str, period: str = "1y"):
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 
 
-# Yahoo's ETF screener has no dividend-yield filter, so the scan works in two
-# steps: (1) list every US ETF with enough assets,
-# (2) look up each one's dividendYield. Step 2 is slow, so it runs in a
-# background thread and the endpoint returns progress until it finishes.
-DIVIDEND_MIN_FUND_ASSETS = 50_000_000
-DIVIDEND_MAX_UNIVERSE = 5000
+# High-dividend ETFs. The page keeps a list of tickers you choose, and this
+# endpoint checks the live yield for only those tickers. Each ticker's result
+# is cached for a day.
 DIVIDEND_CACHE_SECONDS = 24 * 60 * 60
+DIVIDEND_MAX_TICKERS = 100
+DIVIDEND_WORKERS = 2
+DIVIDEND_DELAY_SECONDS = 0.5
 
-_div_lock = threading.Lock()
-_div_state = {"status": "idle", "scanned": 0, "total": 0, "rows": [], "fetched_at": 0.0, "error": None}
-
-
-def _list_etf_universe() -> list[str]:
-    """Pull US ETF tickers in income-oriented categories from Yahoo's screener."""
-    import yfinance as yf
-    from yfinance import ETFQuery
-
-    query = ETFQuery("and", [
-        ETFQuery("eq", ["region", "us"]),
-        ETFQuery("gt", ["fundnetassets", DIVIDEND_MIN_FUND_ASSETS]),
-    ])
-    symbols, offset = [], 0
-    while offset < DIVIDEND_MAX_UNIVERSE:
-        data = yf.screen(query, offset=offset, size=250)
-        quotes = data.get("quotes", [])
-        symbols += [q["symbol"] for q in quotes if q.get("symbol")]
-        if len(quotes) < 250:
-            break
-        offset += 250
-    return list(dict.fromkeys(symbols))  # de-duplicate, keep order
+_div_cache = {}  # ticker -> {"at": timestamp, "row": dict}
 
 
 def _yield_for(symbol: str):
     """Return a yield row for one ETF, or None if Yahoo has no yield for it."""
     import pandas as pd
     import yfinance as yf
+    time.sleep(DIVIDEND_DELAY_SECONDS)  # pace requests so Yahoo does not rate-limit
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
@@ -281,53 +260,43 @@ def _yield_for(symbol: str):
         return None
 
 
-def _run_dividend_scan():
-    try:
-        universe = _list_etf_universe()
-        with _div_lock:
-            _div_state.update(status="scanning", scanned=0, total=len(universe), rows=[], error=None)
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            for row in pool.map(_yield_for, universe):
-                with _div_lock:
-                    _div_state["scanned"] += 1
-                    if row:
-                        _div_state["rows"].append(row)
-        with _div_lock:
-            _div_state.update(status="ready", fetched_at=time.time())
-    except Exception as e:
-        with _div_lock:
-            _div_state.update(status="error", error=str(e))
-
-
-def _ensure_dividend_scan():
-    """Start a scan if there is no fresh result and none is running."""
-    with _div_lock:
-        if _div_state["status"] == "scanning":
-            return
-        if _div_state["status"] == "ready" and time.time() - _div_state["fetched_at"] < DIVIDEND_CACHE_SECONDS:
-            return
-        _div_state["status"] = "scanning"
-    threading.Thread(target=_run_dividend_scan, daemon=True).start()
+def _cached_yield(symbol: str):
+    """Yield row for one ticker, reusing a result from the last day if there is one."""
+    hit = _div_cache.get(symbol)
+    if hit and time.time() - hit["at"] < DIVIDEND_CACHE_SECONDS:
+        return hit["row"]
+    row = _yield_for(symbol)
+    if row:  # do not cache failures, so a rate-limited ticker gets retried
+        _div_cache[symbol] = {"at": time.time(), "row": row}
+    return row
 
 
 @app.get("/dividend-etfs")
-def get_dividend_etfs(min_yield_pct: float = 4.0):
+def get_dividend_etfs(min_yield_pct: float = 10.0, tickers: str = ""):
     """
-    High-dividend US ETFs at or above min_yield_pct, highest yield first.
-    The first call starts a full scan (several minutes). Until status is
-    'ready', etfs holds the matches found so far and scanned/total show progress.
+    Live dividend yield for each ticker in the comma-separated tickers list.
+    etfs holds the ones at or above min_yield_pct. checked holds every ticker
+    that returned a yield. Both are sorted highest yield first.
     """
-    _ensure_dividend_scan()
-    with _div_lock:
-        matches = [r for r in _div_state["rows"] if r["dividend_yield_pct"] >= min_yield_pct]
-        matches = sorted(matches, key=lambda r: r["dividend_yield_pct"], reverse=True)
-        return {
-            "min_yield_pct": min_yield_pct,
-            "status": _div_state["status"],
-            "scanned": _div_state["scanned"],
-            "total": _div_state["total"],
-            "etfs": matches,
-        }
+    symbols = []
+    for t in tickers.split(","):
+        t = t.upper().strip()
+        if t and t not in symbols:
+            symbols.append(t)
+    symbols = symbols[:DIVIDEND_MAX_TICKERS]
+
+    with ThreadPoolExecutor(max_workers=DIVIDEND_WORKERS) as pool:
+        rows = [r for r in pool.map(_cached_yield, symbols) if r]
+    checked = sorted(rows, key=lambda r: r["dividend_yield_pct"], reverse=True)
+    matches = [r for r in checked if r["dividend_yield_pct"] >= min_yield_pct]
+    return {
+        "min_yield_pct": min_yield_pct,
+        "status": "ready",
+        "scanned": len(symbols),
+        "total": len(symbols),
+        "etfs": matches,
+        "checked": checked,
+    }
 
 
 @app.get("/info", response_model=StockInfoResponse)
