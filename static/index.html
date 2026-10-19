@@ -776,8 +776,10 @@
   </div>
 
   <div class="popular">
-    <div class="popular-label">high dividend etfs (4%+ yield, checked live)</div>
-    <div class="popular-grid" id="divGrid">
+    <div class="popular-label" onclick="toggleDividends()" style="cursor:pointer;user-select:none;">
+      <span id="divArrow">&#9656;</span> high dividend etfs (4%+ yield, checked live)
+    </div>
+    <div class="popular-grid" id="divGrid" style="display:none;">
       <span class="popular-label">loading (first load can take about 30 seconds)...</span>
     </div>
   </div>
@@ -1405,6 +1407,14 @@
     } catch (err) {
       grid.innerHTML = '<span class="popular-label">could not load dividend ETFs</span>';
     }
+  }
+
+  function toggleDividends() {
+    const grid = document.getElementById('divGrid');
+    const arrow = document.getElementById('divArrow');
+    const open = grid.style.display === 'none';
+    grid.style.display = open ? '' : 'none';
+    arrow.innerHTML = open ? '&#9662;' : '&#9656;';
   }
 
   loadDividendEtfs();
