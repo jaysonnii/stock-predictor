@@ -211,19 +211,12 @@ def get_history(ticker: str, period: str = "1y"):
 
 
 # Yahoo's ETF screener has no dividend-yield filter, so the scan works in two
-# steps: (1) list US ETFs in income-oriented categories with enough assets,
+# steps: (1) list every US ETF with enough assets,
 # (2) look up each one's dividendYield. Step 2 is slow, so it runs in a
 # background thread and the endpoint returns progress until it finishes.
 DIVIDEND_MIN_FUND_ASSETS = 50_000_000
-DIVIDEND_MAX_UNIVERSE = 2000
+DIVIDEND_MAX_UNIVERSE = 5000
 DIVIDEND_CACHE_SECONDS = 24 * 60 * 60
-DIVIDEND_INCOME_CATEGORIES = [
-    "Large Value", "Large Blend", "Mid-Cap Value", "Small Value",
-    "Option Writing", "Preferred Stock", "High Yield Bond", "Multisector Bond",
-    "Long-Short Credit", "Multialternative", "Tactical Allocation",
-    "Convertibles", "Bank Loan", "Real Estate", "Financial", "Infrastructure",
-    "Equity Energy", "Natural Resources", "Other Allocation", "Other",
-]
 
 _div_lock = threading.Lock()
 _div_state = {"status": "idle", "scanned": 0, "total": 0, "rows": [], "fetched_at": 0.0, "error": None}
@@ -236,7 +229,6 @@ def _list_etf_universe() -> list[str]:
 
     query = ETFQuery("and", [
         ETFQuery("eq", ["region", "us"]),
-        ETFQuery("is-in", ["categoryname", *DIVIDEND_INCOME_CATEGORIES]),
         ETFQuery("gt", ["fundnetassets", DIVIDEND_MIN_FUND_ASSETS]),
     ])
     symbols, offset = [], 0
