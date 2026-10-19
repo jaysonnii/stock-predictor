@@ -11,6 +11,9 @@ from data import fetch_stock_data, engineer_features, get_feature_columns
 MODELS_DIR = "models"
 os.makedirs(MODELS_DIR, exist_ok=True)
 
+# Horizons to try, longest first. Used when a stock lacks enough history.
+FALLBACK_HORIZONS = [252, 126, 63, 21]
+
 
 def train_model(ticker: str, prediction_days: int = 252) -> dict:
     """
@@ -203,6 +206,25 @@ def predict_price(ticker: str, prediction_days: int = 252) -> dict:
         "expected_return_pct": round(float(expected_return_pct), 2),
         "prediction_horizon_days": prediction_days,
     }
+
+
+def predict_price_with_fallback(ticker: str, prediction_days: int = 252) -> dict:
+    """
+    Try the requested horizon first. If there isn't enough history,
+    step down to shorter horizons and report which one was used.
+    """
+    last_error = None
+    for days in [h for h in FALLBACK_HORIZONS if h <= prediction_days]:
+        try:
+            result = predict_price(ticker, days)
+            result["requested_horizon_days"] = prediction_days
+            result["fallback_used"] = days != prediction_days
+            return result
+        except ValueError as e:
+            last_error = e
+    raise ValueError(
+        f"Not enough history for {ticker} even at the shortest horizon (21 days)."
+    ) from last_error
 
 
 if __name__ == "__main__":
