@@ -244,18 +244,38 @@ def _list_etf_universe() -> list[str]:
 
 def _yield_for(symbol: str):
     """Return a yield row for one ETF, or None if Yahoo has no yield for it."""
+    import pandas as pd
     import yfinance as yf
     try:
-        info = yf.Ticker(symbol).info
-        raw_yield = info.get("dividendYield")
-        if raw_yield is None:
-            return None
-        # Yahoo's dividendYield is already a percent (SPY ~0.99 means 0.99%).
-        # Do not rescale it.
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        name = info.get("shortName", "N/A")
+
+        # Preferred: actual cash paid in the last 12 months divided by price.
+        # Yahoo's dividendYield field is wrong for some funds (QQQI shows 0.11).
+        yield_pct = None
+        price = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
+        try:
+            divs = ticker.dividends
+            if price and len(divs) > 0:
+                cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.Timedelta(days=365)
+                paid = float(divs[divs.index >= cutoff].sum())
+                if paid > 0:
+                    yield_pct = paid / float(price) * 100
+        except Exception:
+            pass
+
+        # Fallback: Yahoo's dividendYield, already a percent (SPY 0.99 = 0.99%).
+        if yield_pct is None:
+            raw_yield = info.get("dividendYield")
+            if raw_yield is None:
+                return None
+            yield_pct = float(raw_yield)
+
         return {
             "ticker": symbol,
-            "name": info.get("shortName", "N/A"),
-            "dividend_yield_pct": round(float(raw_yield), 2),
+            "name": name,
+            "dividend_yield_pct": round(yield_pct, 2),
         }
     except Exception:
         return None
