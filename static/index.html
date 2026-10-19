@@ -1386,6 +1386,15 @@
       const res = await fetch('/dividend-etfs?min_yield_pct=4');
       if (!res.ok) throw new Error('bad response');
       const data = await res.json();
+      if (data.status === 'error') {
+        grid.innerHTML = '<span class="popular-label">ETF scan failed, refresh the page to try again</span>';
+        return;
+      }
+      if (data.status !== 'ready') {
+        grid.innerHTML = `<span class="popular-label">scanning ETFs: ${data.scanned} of ${data.total} checked, ${data.etfs.length} found so far...</span>`;
+        setTimeout(loadDividendEtfs, 15000);
+        return;
+      }
       if (!data.etfs || data.etfs.length === 0) {
         grid.innerHTML = '<span class="popular-label">no ETFs above 4% right now</span>';
         return;
