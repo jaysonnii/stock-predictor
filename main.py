@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import os
+import time
 
 from model import predict_price, predict_price_with_fallback, train_model
 from data import fetch_stock_data
@@ -203,6 +204,59 @@ def get_history(ticker: str, period: str = "1y"):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
+
+
+# Candidate ETFs to check for dividend yield. Yields are checked live,
+# so the list only decides which ETFs get looked at, not which pass.
+DIVIDEND_ETF_CANDIDATES = [
+    "SCHD", "HDV", "DVY", "SPYD", "DIVO", "JEPI", "JEPQ", "QYLD", "XYLD",
+    "RYLD", "SDIV", "PFF", "HYG", "SPHD", "NOBL", "VYM", "DGRO", "KBWD",
+]
+DIVIDEND_CACHE_SECONDS = 24 * 60 * 60
+_dividend_cache = {"fetched_at": 0.0, "rows": []}
+
+
+def _fetch_dividend_yields() -> list[dict]:
+    """Look up each candidate's current dividend yield (cached for a day)."""
+    import yfinance as yf
+
+    if time.time() - _dividend_cache["fetched_at"] < DIVIDEND_CACHE_SECONDS:
+        return _dividend_cache["rows"]
+
+    rows = []
+    for symbol in DIVIDEND_ETF_CANDIDATES:
+        try:
+            info = yf.Ticker(symbol).info
+            raw_yield = info.get("dividendYield")
+            if raw_yield is None:
+                continue
+            # Some yfinance versions return a decimal (0.04) and others a
+            # percent (4.0). Every candidate is high-yield, so anything
+            # under 1 is treated as a decimal.
+            yield_pct = raw_yield * 100 if raw_yield < 1 else raw_yield
+            rows.append({
+                "ticker": symbol,
+                "name": info.get("shortName", "N/A"),
+                "dividend_yield_pct": round(float(yield_pct), 2),
+            })
+        except Exception:
+            continue  # skip candidates Yahoo can't return
+
+    _dividend_cache["fetched_at"] = time.time()
+    _dividend_cache["rows"] = rows
+    return rows
+
+
+@app.get("/dividend-etfs")
+def get_dividend_etfs(min_yield_pct: float = 4.0):
+    """
+    High-dividend ETFs at or above min_yield_pct, highest yield first.
+    The first call takes a while because each candidate is looked up live.
+    """
+    rows = _fetch_dividend_yields()
+    matches = [r for r in rows if r["dividend_yield_pct"] >= min_yield_pct]
+    matches.sort(key=lambda r: r["dividend_yield_pct"], reverse=True)
+    return {"min_yield_pct": min_yield_pct, "etfs": matches}
 
 
 @app.get("/info", response_model=StockInfoResponse)
