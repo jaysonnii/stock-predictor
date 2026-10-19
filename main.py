@@ -258,12 +258,12 @@ def _yield_for(symbol: str):
         raw_yield = info.get("dividendYield")
         if raw_yield is None:
             return None
-        # Some yfinance versions return a decimal (0.04), others a percent (4.0).
-        yield_pct = raw_yield * 100 if raw_yield < 1 else raw_yield
+        # Yahoo's dividendYield is already a percent (SPY ~0.99 means 0.99%).
+        # Do not rescale it.
         return {
             "ticker": symbol,
             "name": info.get("shortName", "N/A"),
-            "dividend_yield_pct": round(float(yield_pct), 2),
+            "dividend_yield_pct": round(float(raw_yield), 2),
         }
     except Exception:
         return None
