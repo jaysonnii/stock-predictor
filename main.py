@@ -6,7 +6,9 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from model import predict_price, predict_price_with_fallback, train_model
 from data import fetch_stock_data
@@ -35,6 +37,8 @@ class HorizonPrediction(BaseModel):
     expected_return_pct: float
 
 class MultiPredictionResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     ticker: str
     current_price: float
     predictions: list[HorizonPrediction]
@@ -206,57 +210,112 @@ def get_history(ticker: str, period: str = "1y"):
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 
 
-# Candidate ETFs to check for dividend yield. Yields are checked live,
-# so the list only decides which ETFs get looked at, not which pass.
-DIVIDEND_ETF_CANDIDATES = [
-    "SCHD", "HDV", "DVY", "SPYD", "DIVO", "JEPI", "JEPQ", "QYLD", "XYLD",
-    "RYLD", "SDIV", "PFF", "HYG", "SPHD", "NOBL", "VYM", "DGRO", "KBWD",
-]
+# Yahoo's ETF screener has no dividend-yield filter, so the scan works in two
+# steps: (1) list US ETFs in income-oriented categories with enough assets,
+# (2) look up each one's dividendYield. Step 2 is slow, so it runs in a
+# background thread and the endpoint returns progress until it finishes.
+DIVIDEND_MIN_FUND_ASSETS = 50_000_000
+DIVIDEND_MAX_UNIVERSE = 2000
 DIVIDEND_CACHE_SECONDS = 24 * 60 * 60
-_dividend_cache = {"fetched_at": 0.0, "rows": []}
+DIVIDEND_INCOME_CATEGORIES = [
+    "Large Value", "Large Blend", "Mid-Cap Value", "Small Value",
+    "Option Writing", "Preferred Stock", "High Yield Bond", "Multisector Bond",
+    "Long-Short Credit", "Multialternative", "Tactical Allocation",
+    "Convertibles", "Bank Loan", "Real Estate", "Financial", "Infrastructure",
+    "Equity Energy", "Natural Resources", "Other Allocation", "Other",
+]
+
+_div_lock = threading.Lock()
+_div_state = {"status": "idle", "scanned": 0, "total": 0, "rows": [], "fetched_at": 0.0, "error": None}
 
 
-def _fetch_dividend_yields() -> list[dict]:
-    """Look up each candidate's current dividend yield (cached for a day)."""
+def _list_etf_universe() -> list[str]:
+    """Pull US ETF tickers in income-oriented categories from Yahoo's screener."""
     import yfinance as yf
+    from yfinance import ETFQuery
 
-    if time.time() - _dividend_cache["fetched_at"] < DIVIDEND_CACHE_SECONDS:
-        return _dividend_cache["rows"]
+    query = ETFQuery("and", [
+        ETFQuery("eq", ["region", "us"]),
+        ETFQuery("is-in", ["categoryname", *DIVIDEND_INCOME_CATEGORIES]),
+        ETFQuery("gt", ["fundnetassets", DIVIDEND_MIN_FUND_ASSETS]),
+    ])
+    symbols, offset = [], 0
+    while offset < DIVIDEND_MAX_UNIVERSE:
+        data = yf.screen(query, offset=offset, size=250)
+        quotes = data.get("quotes", [])
+        symbols += [q["symbol"] for q in quotes if q.get("symbol")]
+        if len(quotes) < 250:
+            break
+        offset += 250
+    return list(dict.fromkeys(symbols))  # de-duplicate, keep order
 
-    rows = []
-    for symbol in DIVIDEND_ETF_CANDIDATES:
-        try:
-            info = yf.Ticker(symbol).info
-            raw_yield = info.get("dividendYield")
-            if raw_yield is None:
-                continue
-            # Some yfinance versions return a decimal (0.04) and others a
-            # percent (4.0). Every candidate is high-yield, so anything
-            # under 1 is treated as a decimal.
-            yield_pct = raw_yield * 100 if raw_yield < 1 else raw_yield
-            rows.append({
-                "ticker": symbol,
-                "name": info.get("shortName", "N/A"),
-                "dividend_yield_pct": round(float(yield_pct), 2),
-            })
-        except Exception:
-            continue  # skip candidates Yahoo can't return
 
-    _dividend_cache["fetched_at"] = time.time()
-    _dividend_cache["rows"] = rows
-    return rows
+def _yield_for(symbol: str):
+    """Return a yield row for one ETF, or None if Yahoo has no yield for it."""
+    import yfinance as yf
+    try:
+        info = yf.Ticker(symbol).info
+        raw_yield = info.get("dividendYield")
+        if raw_yield is None:
+            return None
+        # Some yfinance versions return a decimal (0.04), others a percent (4.0).
+        yield_pct = raw_yield * 100 if raw_yield < 1 else raw_yield
+        return {
+            "ticker": symbol,
+            "name": info.get("shortName", "N/A"),
+            "dividend_yield_pct": round(float(yield_pct), 2),
+        }
+    except Exception:
+        return None
+
+
+def _run_dividend_scan():
+    try:
+        universe = _list_etf_universe()
+        with _div_lock:
+            _div_state.update(status="scanning", scanned=0, total=len(universe), rows=[], error=None)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for row in pool.map(_yield_for, universe):
+                with _div_lock:
+                    _div_state["scanned"] += 1
+                    if row:
+                        _div_state["rows"].append(row)
+        with _div_lock:
+            _div_state.update(status="ready", fetched_at=time.time())
+    except Exception as e:
+        with _div_lock:
+            _div_state.update(status="error", error=str(e))
+
+
+def _ensure_dividend_scan():
+    """Start a scan if there is no fresh result and none is running."""
+    with _div_lock:
+        if _div_state["status"] == "scanning":
+            return
+        if _div_state["status"] == "ready" and time.time() - _div_state["fetched_at"] < DIVIDEND_CACHE_SECONDS:
+            return
+        _div_state["status"] = "scanning"
+    threading.Thread(target=_run_dividend_scan, daemon=True).start()
 
 
 @app.get("/dividend-etfs")
 def get_dividend_etfs(min_yield_pct: float = 4.0):
     """
-    High-dividend ETFs at or above min_yield_pct, highest yield first.
-    The first call takes a while because each candidate is looked up live.
+    High-dividend US ETFs at or above min_yield_pct, highest yield first.
+    The first call starts a full scan (several minutes). Until status is
+    'ready', etfs holds the matches found so far and scanned/total show progress.
     """
-    rows = _fetch_dividend_yields()
-    matches = [r for r in rows if r["dividend_yield_pct"] >= min_yield_pct]
-    matches.sort(key=lambda r: r["dividend_yield_pct"], reverse=True)
-    return {"min_yield_pct": min_yield_pct, "etfs": matches}
+    _ensure_dividend_scan()
+    with _div_lock:
+        matches = [r for r in _div_state["rows"] if r["dividend_yield_pct"] >= min_yield_pct]
+        matches = sorted(matches, key=lambda r: r["dividend_yield_pct"], reverse=True)
+        return {
+            "min_yield_pct": min_yield_pct,
+            "status": _div_state["status"],
+            "scanned": _div_state["scanned"],
+            "total": _div_state["total"],
+            "etfs": matches,
+        }
 
 
 @app.get("/info", response_model=StockInfoResponse)
