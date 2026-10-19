@@ -1,1439 +1,576 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock Predictor</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
-  // ── Watchlist ──────────────────────────────────────────────────────────────
-  function loadWatchlist() {
-    try { return JSON.parse(localStorage.getItem('watchlist') || '[]'); }
-    catch { return []; }
-  }
-
-  function saveWatchlist(list) {
-    localStorage.setItem('watchlist', JSON.stringify(list));
-  }
-
-  function renderWatchlist() {
-    const list = loadWatchlist();
-    const el = document.getElementById('wlList');
-    if (list.length === 0) {
-      el.innerHTML = '<div class="wl-empty">No stocks added yet.</div>';
-      return;
-    }
-    el.innerHTML = list.map((s, i) => `
-      <div class="wl-item" onclick="quickLook('${s.ticker}')">
-        <button class="wl-remove" onclick="event.stopPropagation(); removeFromWatchlist(${i})">✕</button>
-        <div class="wl-ticker">${s.ticker}</div>
-        <div class="wl-name">${s.name}</div>
-        <div class="wl-price">${s.price}</div>
-        <div class="wl-date">Added ${s.date}</div>
-      </div>
-    `).join('');
-  }
-
-  function addToWatchlist() {
-    const ticker = curTicker;
-    const name = document.getElementById('sName').textContent;
-    const price = document.getElementById('sPrice').textContent;
-    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-    const list = loadWatchlist();
-    if (list.find(s => s.ticker === ticker)) {
-      alert(ticker + ' is already in your watchlist.');
-      return;
-    }
-    list.push({ ticker, name, price, date });
-    saveWatchlist(list);
-    renderWatchlist();
-    document.getElementById('addWatchBtn').textContent = '✓ Added';
-    document.getElementById('addWatchBtn').disabled = true;
-  }
-
-  function removeFromWatchlist(index) {
-    const list = loadWatchlist();
-    list.splice(index, 1);
-    saveWatchlist(list);
-    renderWatchlist();
-  }
-
-  // Show add button after results load
-  const origRun = run;
-
-  // Render watchlist on page load
-  renderWatchlist();
-
-
-  function showTab(name) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
-    document.querySelectorAll('.main-tab').forEach(t => {
-      if (t.textContent.toLowerCase() === name) t.classList.add('active');
-    });
-  }
-
-  function renderValuation(info, currentPrice) {
-    if (!info || !info.pe_ratio) return;
-    const pe = info.pe_ratio;
-    // Estimate EPS from current price and P/E
-    const eps = currentPrice / pe;
-    const growthRate = 10; // assumed 10% growth
-    const intrinsic = eps * (8.5 + 2 * growthRate);
-    const diff = ((currentPrice - intrinsic) / intrinsic) * 100;
-    const isOver = currentPrice > intrinsic;
-
-    const rows = [
-      { lbl: 'Current Price',    num: fmt(currentPrice) },
-      { lbl: 'Est. EPS',         num: '$' + eps.toFixed(2) },
-      { lbl: 'Assumed Growth',   num: growthRate + '%/yr' },
-      { lbl: 'Graham Intrinsic Value', num: fmt(intrinsic) },
-      { lbl: 'Difference',       num: (isOver ? '+' : '') + diff.toFixed(1) + '%' },
-    ];
-
-    const explanations = {
-      'Current Price': { short: 'The price of one share right now on the stock market.', full: '' },
-      'Est. EPS': {
-        short: 'Earnings Per Share — how much profit the company made per share last year.',
-        full: `<strong>EPS = Total Company Profit ÷ Shares Outstanding</strong><br><br>
-          Calculated here as: <code>Current Price ÷ P/E Ratio = EPS</code><br><br>
-          Example: $${currentPrice.toFixed(2)} ÷ ${pe.toFixed(2)} = $${eps.toFixed(2)} per share earned<br><br>
-          <strong>Rising EPS</strong> = company getting more profitable ✓<br>
-          <strong>Falling EPS</strong> = profits shrinking, investigate why<br>
-          <strong>Negative EPS</strong> = company losing money, high risk`
-      },
-      'Assumed Growth': {
-        short: 'The annual earnings growth rate used in the Graham formula.',
-        full: `The Benjamin Graham formula assumes <strong>10% annual growth</strong> as a baseline for an average healthy company.<br><br>
-          High-growth tech companies (NVDA, META) often grow faster — meaning their fair value could be higher.<br>
-          Slow-growth companies (utilities, banks) may grow less — meaning 10% is generous.`
-      },
-      'Graham Intrinsic Value': {
-        short: "An estimate of what the stock is truly worth based on earnings and growth.",
-        full: `<strong>Formula: EPS × (8.5 + 2 × growth rate)</strong><br><br>
-          8.5 = Benjamin Graham's base P/E for a company with zero growth<br>
-          2 × growth rate = premium added for expected earnings growth<br><br>
-          If current price is <strong>below</strong> this value → potentially undervalued ✓<br>
-          If current price is <strong>above</strong> this value → you may be paying a premium`
-      },
-      'Difference': {
-        short: 'How far the current price is from the estimated fair value.',
-        full: `<strong>Negative %</strong> = stock is trading <em>below</em> fair value (potentially a good buy)<br>
-          <strong>Positive %</strong> = stock is trading <em>above</em> fair value (you're paying a premium)<br><br>
-          Note: This is one signal only. Always cross-check with P/E ratio, recent earnings, and market conditions.`
-      },
-    };
-
-    document.getElementById('valRows').innerHTML = rows.map(r => {
-      const exp = explanations[r.lbl];
-      if (!exp) return `<div class="val-row"><span class="lbl">${r.lbl}</span><span class="num">${r.num}</span></div>`;
-      const id = 'exp-' + r.lbl.replace(/[^a-z]/gi, '');
-      return `
-        <div class="val-row">
-          <span class="lbl">
-            <span class="etip" onclick="toggleExp('${id}')">
-              ${r.lbl} <span class="etip-icon">[+]</span>
-            </span>
-          </span>
-          <span class="num">${r.num}</span>
-        </div>
-        <div class="etip-box" id="${id}">${exp.full || exp.short}</div>`;
-    }).join('');
-
-    const verdict = document.getElementById('valVerdict');
-    if (isOver) {
-      verdict.className = 'val-verdict over';
-      verdict.textContent = `Trading ${Math.abs(diff).toFixed(1)}% above estimated fair value. You may be paying a premium. This is normal for high-growth companies.`;
-    } else {
-      verdict.className = 'val-verdict under';
-      verdict.textContent = `Trading ${Math.abs(diff).toFixed(1)}% below estimated fair value. The stock may be undervalued based on current earnings.`;
-    }
-    document.getElementById('valBox').style.display = 'block';
-  }
-
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f3f4f1;
+    --card: #ffffff;
+    --ink: #111412;
+    --muted: #7a7f78;
+    --line: #e6e8e3;
+    --accent: #b8f04f;
+    --accent-ink: #0d1a05;
+    --dark: #0f1410;
+    --up: #15803d;
+    --down: #dc2626;
+    --radius: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c0f0d;
+      --card: #151a16;
+      --ink: #eef2ec;
+      --muted: #8b948a;
+      --line: #232a24;
+      --accent: #b8f04f;
+      --accent-ink: #0d1a05;
+      --dark: #050706;
+      --up: #4ade80;
+      --down: #f87171;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0f0d;
+    --card: #151a16;
+    --ink: #eef2ec;
+    --muted: #8b948a;
+    --line: #232a24;
+    --accent: #b8f04f;
+    --accent-ink: #0d1a05;
+    --dark: #050706;
+    --up: #4ade80;
+    --down: #f87171;
+  }
 
+  * { box-sizing: border-box; }
   body {
-    background: #fff;
-    color: #111;
-    font-family: system-ui, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
     font-size: 15px;
-    line-height: 1.5;
-    padding: 32px 20px 80px;
   }
+  .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 
-  .layout { display: flex; gap: 32px; max-width: 1080px; margin: 0 auto; }
-  .main { flex: 1; min-width: 0; }
-  .wrap { width: 100%; }
+  /* sidebar */
+  .side {
+    background: var(--dark); color: #e9efe6;
+    padding: 24px 16px; position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 10px; padding: 6px 10px 22px; }
+  .logo .dot { width: 28px; height: 28px; border-radius: 9px; background: var(--accent); }
+  .nav { display: flex; flex-direction: column; gap: 6px; }
+  .nav button {
+    all: unset; cursor: pointer; display: block; padding: 11px 12px;
+    border-radius: 12px; color: #aeb7aa; font-size: 14px; width: 100%; box-sizing: border-box;
+  }
+  .nav button:hover { color: #fff; background: #1c231d; }
+  .nav button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
-  h1 {
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 400;
-    color: #999;
-    margin-bottom: 24px;
-  }
+  /* layout */
+  main { padding: 28px 32px; min-width: 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+  h1 { font-size: 26px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  .sub, .hint { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; gap: 16px; }
+  .stats { grid-template-columns: repeat(4, 1fr); }
+  .two { grid-template-columns: 1.4fr 1fr; margin-top: 16px; }
+  .horizons { grid-template-columns: repeat(3, 1fr); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
+  .card + .card { margin-top: 0; }
+  .label { color: var(--muted); font-size: 13px; }
+  .value { font-size: 26px; font-weight: 700; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+  .pill.up { background: rgba(21, 128, 61, .12); }
+  .pill.down { background: rgba(220, 38, 38, .12); }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+  .hidden { display: none !important; }
 
-  .search { display: flex; gap: 8px; margin-bottom: 36px; }
+  /* controls */
+  input, select {
+    font: inherit; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--card); color: var(--ink); min-width: 0;
+  }
+  .btn {
+    font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 10px 16px;
+    background: var(--dark); color: #fff; cursor: pointer;
+  }
+  .btn.lime { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 6px 10px; font-size: 13px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip {
+    all: unset; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line);
+    border-radius: 999px; font-size: 13px; background: var(--card);
+  }
+  .chip:hover { border-color: var(--accent); }
+  .top-inline { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 
-  input {
-    font-family: monospace;
-    font-size: 20px;
-    font-weight: 600;
-    color: #111;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 0;
-    padding: 10px 14px;
-    width: 150px;
-    text-transform: uppercase;
-    outline: none;
-  }
+  /* tables */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 12px 8px; border-bottom: 1px solid var(--line); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.click { cursor: pointer; }
+  tr.click:hover td { background: var(--bg); }
 
-  input:focus { border-color: #111; }
+  .chartbox { position: relative; height: 320px; }
 
-  button {
-    font-family: system-ui, sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    background: #111;
-    color: #fff;
-    border: none;
-    border-radius: 0;
-    padding: 10px 20px;
-    cursor: pointer;
-  }
-
-  button:hover { background: #333; }
-  button:disabled { background: #aaa; cursor: not-allowed; }
-
-  .error {
-    display: none;
-    font-family: monospace;
-    font-size: 13px;
-    color: #c00;
-    margin-bottom: 20px;
-  }
-  .error.show { display: block; }
-
-  .loading {
-    display: none;
-    font-family: monospace;
-    font-size: 13px;
-    color: #888;
-    margin-bottom: 20px;
-  }
-  .loading.show { display: block; }
-
-  .result { display: none; }
-  .result.show { display: block; }
-
-  /* Stock header */
-  .stock-header {
-    padding-bottom: 20px;
-    margin-bottom: 24px;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .stock-name {
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  .stock-sub {
-    font-family: monospace;
-    font-size: 12px;
-    color: #888;
-    margin-top: 2px;
-  }
-
-  .stock-price {
-    font-family: monospace;
-    font-size: 30px;
-    font-weight: 600;
-    margin-top: 8px;
-  }
-
-  /* Predictions table */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: monospace;
-    font-size: 14px;
-    margin-bottom: 28px;
-  }
-
-  th {
-    text-align: left;
-    font-size: 11px;
-    font-weight: 500;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0 16px 8px 0;
-    border-bottom: 1px solid #ddd;
-  }
-
-  td {
-    padding: 10px 16px 10px 0;
-    border-bottom: 1px solid #eee;
-  }
-
-  .up   { color: #1a7f37; }
-  .down { color: #c00; }
-
-  /* Company info */
-  .info-row {
-    display: flex;
-    gap: 28px;
-    flex-wrap: wrap;
-    padding-bottom: 24px;
-    margin-bottom: 28px;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .info-item .lbl {
-    font-size: 11px;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 500;
-  }
-
-  .info-item .val {
-    font-family: monospace;
-    font-size: 14px;
-    font-weight: 500;
-    margin-top: 2px;
-  }
-
-  /* Chart */
-  .chart-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-
-  .chart-lbl {
-    font-size: 11px;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 500;
-  }
-
-  .tabs { display: flex; gap: 4px; }
-
-  .tab {
-    font-family: monospace;
-    font-size: 11px;
-    background: transparent;
-    color: #888;
-    border: 1px solid #ccc;
-    border-radius: 0;
-    padding: 3px 8px;
-    cursor: pointer;
-  }
-
-  .tab:hover { color: #111; border-color: #888; }
-  .tab.active { background: #111; color: #fff; border-color: #111; }
-
-  .chart-box {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 0;
-    padding: 16px;
-    height: 220px;
-    position: relative;
-  }
-
-  .note {
-    font-size: 12px;
-    color: #bbb;
-    margin-top: 32px;
-  }
-
-  .popular { margin-bottom: 32px; }
-  .popular-label { font-family: monospace; font-size: 11px; color: #999; margin-bottom: 10px; }
-  .popular-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-  .pop-btn {
-    font-family: monospace;
-    font-size: 13px;
-    background: #fff;
-    color: #111;
-    border: 1px solid #ccc;
-    padding: 6px 12px;
-    cursor: pointer;
-  }
-  .pop-btn:hover { border-color: #111; }
-
-  /* Watchlist sidebar */
-  .watchlist {
-    width: 220px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 32px;
-    align-self: flex-start;
-  }
-
-  .wl-header {
-    font-family: monospace;
-    font-size: 11px;
-    color: #999;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .wl-header span { color: #bbb; font-size: 10px; cursor: default; }
-
-  .wl-empty {
-    font-family: monospace;
-    font-size: 12px;
-    color: #ccc;
-    padding: 10px 0;
-  }
-
-  .wl-item {
-    border: 1px solid #eee;
-    padding: 10px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    position: relative;
-  }
-
-  .wl-item:hover { border-color: #aaa; }
-
-  .wl-ticker {
-    font-family: monospace;
-    font-size: 14px;
-    font-weight: 600;
-    color: #111;
-  }
-
-  .wl-name {
-    font-size: 11px;
-    color: #888;
-    margin-top: 1px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .wl-price {
-    font-family: monospace;
-    font-size: 13px;
-    color: #111;
-    margin-top: 4px;
-  }
-
-  .wl-date {
-    font-family: monospace;
-    font-size: 10px;
-    color: #bbb;
-    margin-top: 2px;
-  }
-
-  .wl-remove {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    font-size: 11px;
-    color: #ccc;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-  }
-
-  .wl-remove:hover { color: #c00; }
-
-  .add-watch-btn {
-    font-family: monospace;
-    font-size: 12px;
-    background: #fff;
-    color: #111;
-    border: 1px solid #ccc;
-    padding: 7px 14px;
-    cursor: pointer;
-    margin-top: 4px;
-    margin-bottom: 28px;
-    display: none;
-  }
-
-  .add-watch-btn:hover { border-color: #111; }
-  .add-watch-btn.visible { display: inline-block; }
-
-  @media (max-width: 780px) {
-    .layout { flex-direction: column; }
-    .watchlist { width: 100%; position: static; }
-  }
-
-  /* Tooltip */
-  .tip {
-    position: relative;
-    display: inline-block;
-    border-bottom: 1px dashed #aaa;
-    cursor: help;
-  }
-  .tip .tiptext {
-    display: none;
-    position: absolute;
-    bottom: 130%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #111;
-    color: #eee;
-    font-family: monospace;
-    font-size: 11px;
-    line-height: 1.5;
-    padding: 8px 10px;
-    width: 220px;
-    z-index: 99;
-    pointer-events: none;
-  }
-  .tip:hover .tiptext { display: block; }
-
-  /* Signal card */
-  .signal-card {
-    border: 1px solid #ddd;
-    padding: 14px 16px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .signal-badge {
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 4px 12px;
-    border: 1px solid;
-    letter-spacing: 0.05em;
-  }
-  .signal-badge.buy  { color: #1a7f37; border-color: #1a7f37; }
-  .signal-badge.hold { color: #b08000; border-color: #b08000; }
-  .signal-badge.sell { color: #c00;    border-color: #c00; }
-  .signal-reason {
-    font-size: 12px;
-    color: #666;
-    line-height: 1.5;
-  }
-
-  /* ETF section */
-  .etf-section { margin-bottom: 24px; }
-  .etf-label {
-    font-size: 11px;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 8px;
-    font-weight: 500;
-  }
-  .etf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .etf-chip {
-    font-family: monospace;
-    font-size: 12px;
-    background: #fff;
-    color: #111;
-    border: 1px solid #ccc;
-    padding: 4px 10px;
-    cursor: pointer;
-  }
-  .etf-chip:hover { border-color: #111; }
-
-  /* Main nav tabs */
-  .main-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid #ddd;
-    margin-bottom: 28px;
-  }
-  .main-tab {
-    font-family: monospace;
-    font-size: 12px;
-    background: transparent;
-    color: #888;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 8px 16px 8px 0;
-    cursor: pointer;
-    margin-bottom: -1px;
-  }
-  .main-tab:hover { color: #111; }
-  .main-tab.active { color: #111; border-bottom: 2px solid #111; font-weight: 600; }
-
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* Valuation box */
-  .val-box {
-    border: 1px solid #ddd;
-    padding: 16px;
-    margin-bottom: 24px;
-    font-family: monospace;
-    font-size: 13px;
-  }
-  .val-title {
-    font-size: 11px;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 12px;
-    font-family: system-ui, sans-serif;
-    font-weight: 500;
-  }
-  .val-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  .val-row:last-child { border-bottom: none; }
-  .val-row .lbl { color: #666; }
-  .val-row .num { font-weight: 600; }
-  .val-verdict {
-    margin-top: 12px;
-    padding: 8px 10px;
-    font-size: 12px;
-    font-family: system-ui, sans-serif;
-    color: #444;
-    background: #f9f9f9;
-    border-left: 3px solid #ccc;
-  }
-  .val-verdict.under { border-left-color: #1a7f37; }
-  .val-verdict.over  { border-left-color: #c00; }
-
-  /* Learn tab */
-  .learn-section {
-    margin-bottom: 36px;
-  }
-  .learn-section h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: #111;
-    margin-bottom: 14px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #eee;
-  }
-  .learn-section p {
-    font-size: 14px;
-    color: #444;
-    line-height: 1.7;
-    margin-bottom: 10px;
-  }
-  .learn-section ul {
-    padding-left: 18px;
-    margin-bottom: 10px;
-  }
-  .learn-section ul li {
-    font-size: 14px;
-    color: #444;
-    line-height: 1.7;
-    margin-bottom: 4px;
-  }
-  .ratio-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  .ratio-card {
-    border: 1px solid #eee;
-    padding: 12px;
-  }
-  .ratio-card .name {
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-  .ratio-card .def {
-    font-size: 12px;
-    color: #666;
-    line-height: 1.5;
-  }
-  .ratio-card .rule {
-    font-size: 11px;
-    color: #888;
-    margin-top: 6px;
-    font-style: italic;
-  }
-  .checklist { list-style: none; padding: 0; }
-  .checklist li {
-    font-size: 14px;
-    color: #444;
-    padding: 7px 0;
-    border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-  }
-  .checklist li:last-child { border-bottom: none; }
-  .checklist li::before {
-    content: '□';
-    font-family: monospace;
-    color: #bbb;
-    flex-shrink: 0;
-  }
-  .formula-box {
-    background: #f9f9f9;
-    border: 1px solid #eee;
-    padding: 12px 14px;
-    font-family: monospace;
-    font-size: 13px;
-    color: #333;
-    margin: 10px 0;
-    line-height: 1.8;
-  }
-
-  .hl {
-    background: #fff9c4;
-    padding: 1px 3px;
-    font-weight: 600;
-    color: #111;
-  }
-  .must-know {
-    background: #fff9c4;
-    border-left: 3px solid #f0c000;
-    padding: 10px 14px;
-    margin: 10px 0;
-    font-size: 13px;
-    color: #333;
-    line-height: 1.6;
-  }
-  .must-know strong { color: #111; }
-
-  /* Expandable tooltips */
-  .etip {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    cursor: pointer;
-    border-bottom: 1px dashed #aaa;
-  }
-  .etip-icon {
-    font-size: 10px;
-    color: #aaa;
-    font-family: monospace;
-  }
-  .etip-box {
-    display: none;
-    background: #f9f9f9;
-    border: 1px solid #ddd;
-    border-left: 3px solid #f0c000;
-    padding: 10px 12px;
-    font-size: 12px;
-    color: #444;
-    line-height: 1.6;
-    margin-top: 6px;
-    margin-bottom: 6px;
-    font-family: system-ui, sans-serif;
-  }
-  .etip-box.open { display: block; }
-  .etip-box strong { color: #111; }
-  .etip-box code {
-    background: #eee;
-    padding: 1px 4px;
-    font-family: monospace;
-    font-size: 11px;
+  /* phones and small tablets */
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: column; padding: 14px 16px; }
+    .logo { padding: 0 0 10px; }
+    .nav { flex-direction: row; overflow-x: auto; }
+    .nav button { width: auto; white-space: nowrap; }
+    main { padding: 18px 16px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .two { grid-template-columns: 1fr; }
+    .horizons { grid-template-columns: 1fr; }
+    .value { font-size: 22px; }
+    table { font-size: 13px; }
+    th, td { padding: 10px 6px; }
   }
 </style>
 </head>
 <body>
-<div class="layout"><div class="main"><div class="wrap">
+<div class="app">
 
-  <h1>stock predictor &mdash; ml price forecast</h1>
+  <aside class="side">
+    <div class="logo"><span class="dot"></span>Predictor</div>
+    <nav class="nav">
+      <button data-view="overview" class="active">Overview</button>
+      <button data-view="holdings">My holdings</button>
+      <button data-view="predict">Predictions</button>
+      <button data-view="dividends">High dividend ETFs</button>
+    </nav>
+  </aside>
 
-  <div class="search">
-    <input id="ticker" type="text" placeholder="AAPL" maxlength="6" />
-    <button id="btn" onclick="run()">Look up</button>
-  </div>
-
-
-  <div class="popular">
-    <div class="popular-label">popular stocks</div>
-    <div class="popular-grid">
-      <button class="pop-btn" onclick="quickLook('AAPL')">AAPL — Apple</button>
-      <button class="pop-btn" onclick="quickLook('MSFT')">MSFT — Microsoft</button>
-      <button class="pop-btn" onclick="quickLook('GOOGL')">GOOGL — Alphabet</button>
-      <button class="pop-btn" onclick="quickLook('AMZN')">AMZN — Amazon</button>
-      <button class="pop-btn" onclick="quickLook('NVDA')">NVDA — Nvidia</button>
-      <button class="pop-btn" onclick="quickLook('TSLA')">TSLA — Tesla</button>
-      <button class="pop-btn" onclick="quickLook('META')">META — Meta</button>
-      <button class="pop-btn" onclick="quickLook('JPM')">JPM — JPMorgan</button>
-      <button class="pop-btn" onclick="quickLook('SPY')">SPY — S&P 500 ETF</button>
-      <button class="pop-btn" onclick="quickLook('BRK-B')">BRK-B — Berkshire</button>
-    </div>
-  </div>
-
-  <div class="popular">
-    <div class="popular-label" onclick="toggleDividends()" style="cursor:pointer;user-select:none;">
-      <span id="divArrow">&#9656;</span> high dividend etfs (4%+ yield, checked live)
-    </div>
-    <div class="popular-grid" id="divGrid" style="display:none;">
-      <span class="popular-label">loading (first load can take about 30 seconds)...</span>
-    </div>
-  </div>
-
-  <div class="error" id="error"></div>
-  <div class="loading" id="loading"><span id="loadingMsg">Fetching data...</span></div>
-
-  <div class="result" id="result">
-
-    <div class="stock-header">
-      <div class="stock-name" id="sName"></div>
-      <div class="stock-sub" id="sSub"></div>
-      <div class="stock-price" id="sPrice"></div>
-    </div>
-
-    <button class="add-watch-btn" id="addWatchBtn" onclick="addToWatchlist()">+ Add to Watchlist</button>
-
-    <!-- Main nav tabs -->
-    <div class="main-tabs">
-      <button class="main-tab active" onclick="showTab('overview')">Overview</button>
-      <button class="main-tab" onclick="showTab('learn')">Learn</button>
-    </div>
-
-    <!-- OVERVIEW TAB -->
-    <div class="tab-panel active" id="tab-overview">
-
-      <!-- Signal card -->
-      <div class="signal-card" id="signalCard" style="display:none;">
-        <div class="signal-badge" id="signalBadge"></div>
-        <div class="signal-reason" id="signalReason"></div>
+  <main>
+    <div class="top">
+      <div>
+        <h1 id="title">Overview</h1>
+        <div class="sub" id="subtitle">Your holdings and model forecasts</div>
       </div>
+      <form class="chips" id="lookupForm" autocomplete="off">
+        <input id="tickerInput" placeholder="Ticker, e.g. AAPL" maxlength="12">
+        <button class="btn lime" type="submit">Predict</button>
+      </form>
+    </div>
 
-      <div id="predRows" style="margin-bottom:28px;"></div>
-
-      <!-- Valuation box -->
-      <div class="val-box" id="valBox" style="display:none;">
-        <div class="val-title">Valuation estimate</div>
-        <div id="valRows"></div>
-        <div class="val-verdict" id="valVerdict"></div>
-      </div>
-
-      <!-- ETF section -->
-      <div class="etf-section" id="etfSection" style="display:none;">
-        <div class="etf-label">related etfs that hold this stock</div>
-        <div class="etf-chips" id="etfChips"></div>
-      </div>
-
-      <div class="info-row" id="infoRow"></div>
-
-      <div class="chart-top">
-        <div class="chart-lbl">Price History</div>
-        <div class="tabs">
-          <button class="tab" onclick="loadChart('1mo')">1M</button>
-          <button class="tab" onclick="loadChart('3mo')">3M</button>
-          <button class="tab active" onclick="loadChart('1y')">1Y</button>
-          <button class="tab" onclick="loadChart('2y')">2Y</button>
-          <button class="tab" onclick="loadChart('5y')">5Y</button>
+    <!-- OVERVIEW -->
+    <section id="view-overview" class="view">
+      <div class="grid stats">
+        <div class="card">
+          <div class="label">Portfolio value</div>
+          <div class="value" id="sValue">—</div>
+          <span class="pill" id="sValuePill">no holdings yet</span>
+        </div>
+        <div class="card">
+          <div class="label">Cost basis</div>
+          <div class="value" id="sCost">—</div>
+          <span class="pill">what you paid</span>
+        </div>
+        <div class="card">
+          <div class="label">Unrealized P/L</div>
+          <div class="value" id="sPL">—</div>
+          <span class="pill" id="sPLPill">—</span>
+        </div>
+        <div class="card">
+          <div class="label">Model forecast</div>
+          <div class="value" id="sPred">—</div>
+          <span class="pill" id="sPredPill">model horizon</span>
         </div>
       </div>
-      <div class="chart-box">
-        <canvas id="chart"></canvas>
-      </div>
-
-    </div><!-- end overview tab -->
-
-    <!-- LEARN TAB -->
-    <div class="tab-panel" id="tab-learn">
-
-      <!-- Intrinsic value explanation -->
-      <div class="learn-section">
-        <h3>How to tell if a stock is overvalued or undervalued</h3>
-        <p>The most common beginner method is the <strong>Benjamin Graham formula</strong> — a simple way to estimate what a stock is <em>actually worth</em> based on its earnings, then compare that to the current price.</p>
-        <div class="formula-box">
-          Intrinsic Value = EPS × (8.5 + 2 × growth rate)<br>
-          <br>
-          EPS = Earnings Per Share (how much profit per share)<br>
-          8.5 = Graham's base P/E for a no-growth company<br>
-          growth rate = expected annual earnings growth (%)
+      <div class="grid two">
+        <div class="card">
+          <h2>My holdings</h2>
+          <div class="hint">Click a row to see its predictions</div>
+          <div id="ovHoldings" style="margin-top:12px"></div>
         </div>
-        <p>If the intrinsic value is <strong>higher</strong> than the current price → the stock may be <strong>undervalued</strong> (potentially a good buy).</p>
-        <p>If the intrinsic value is <strong>lower</strong> than the current price → the stock may be <strong>overvalued</strong> (you're paying a premium).</p>
-        <p>Your app calculates this automatically on the Overview tab using the stock's current EPS and a 10% assumed growth rate.</p>
-      </div>
-
-      <!-- How to read a chart -->
-      <div class="learn-section">
-        <h3>How to read a price chart</h3>
-        <p>A price chart shows you how a stock's value has moved over time. Here's what to look for:</p>
-        <ul>
-          <li><strong>Trend direction</strong> — is the line going up (bullish), down (bearish), or sideways (consolidating)? Buying into an uptrend is generally safer.</li>
-          <li><strong>Support level</strong> — a price the stock keeps bouncing off from below. If it holds, that's a potential buying zone.</li>
-          <li><strong>Resistance level</strong> — a price the stock keeps failing to break above. If it breaks through, that's a bullish signal.</li>
-          <li><strong>Sharp drops</strong> — sudden dips can be buying opportunities OR warning signs. Check the news to find out why.</li>
-          <li><strong>52-week range</strong> — if the stock is near its 52W low, it's pulled back a lot. Near its 52W high means it's been on a run.</li>
-          <li><strong>Zoom out</strong> — always look at the 1Y and 5Y charts, not just 1M. Short-term noise can look scary but be meaningless long-term.</li>
-        </ul>
-      </div>
-
-      <!-- Key ratios -->
-      <div class="learn-section">
-        <h3>Key ratios explained</h3>
-        <div class="ratio-grid">
-          <div class="ratio-card">
-            <div class="name">P/E Ratio</div>
-            <div class="def">Price-to-Earnings. How much you're paying for every $1 of the company's profit.</div>
-            <div class="rule">S&P 500 avg ~25. Under 15 = cheap. Over 40 = expensive or high-growth expected.</div>
-          </div>
-          <div class="ratio-card">
-            <div class="name">EPS</div>
-            <div class="def">Earnings Per Share. The company's profit divided by number of shares. Higher = more profitable.</div>
-            <div class="rule">Rising EPS over time is a good sign. Negative EPS means the company is losing money.</div>
-          </div>
-          <div class="ratio-card">
-            <div class="name">Market Cap</div>
-            <div class="def">Total value of all shares combined. Tells you the size of the company.</div>
-            <div class="rule">Large cap >$10B = stable. Mid cap $2–10B = growth potential. Small cap &lt;$2B = higher risk.</div>
-          </div>
-          <div class="ratio-card">
-            <div class="name">52W High / Low</div>
-            <div class="def">The highest and lowest price the stock hit in the past year.</div>
-            <div class="rule">Near the low can mean buying opportunity. Near the high means momentum — but could reverse.</div>
-          </div>
-          <div class="ratio-card">
-            <div class="name">Volume</div>
-            <div class="def">How many shares were traded that day. High volume = strong conviction behind a move.</div>
-            <div class="rule">A price rise on high volume is more meaningful than on low volume.</div>
-          </div>
-          <div class="ratio-card">
-            <div class="name">Dividend Yield</div>
-            <div class="def">Annual dividend payment as a % of the stock price. Passive income from holding shares.</div>
-            <div class="rule">2–4% is typical. Very high yields (>7%) can signal a struggling company.</div>
-          </div>
+        <div class="card">
+          <h2>High dividend ETFs</h2>
+          <div class="hint">Top yields from the live scan</div>
+          <div id="ovDividends" style="margin-top:12px"></div>
         </div>
       </div>
+    </section>
 
-      <!-- Beginner checklist -->
-      <div class="learn-section">
-        <h3>Beginner stock buying checklist</h3>
-        <p>Before buying any stock, ask yourself these questions:</p>
-        <ul class="checklist">
-          <li>Do I understand what this company actually does and how it makes money?</li>
-          <li>Is the P/E ratio reasonable compared to the industry average?</li>
-          <li>Has revenue and EPS been growing over the past 3–5 years?</li>
-          <li>Is the stock near a 52-week low (potential value) or near all-time highs (paying a premium)?</li>
-          <li>What is the overall market trend? Buying in a bear market is riskier.</li>
-          <li>Does the company have significant debt? (Debt-to-equity ratio)</li>
-          <li>Would I be comfortable holding this for 3–5 years if it dropped 30%?</li>
-          <li>Am I investing money I don't need in the next 1–2 years?</li>
-          <li>Have I read recent news or earnings reports about this company?</li>
-          <li>Is this a single stock bet or part of a diversified portfolio?</li>
-        </ul>
-        <p style="margin-top:12px; color:#888; font-size:12px;">If you can't answer most of these confidently, consider an ETF like SPY or QQQ first to build exposure while you learn.</p>
+    <!-- HOLDINGS -->
+    <section id="view-holdings" class="view hidden">
+      <div class="card">
+        <h2>My holdings</h2>
+        <div class="hint">Saved in this browser. Prices refresh when you open the page.</div>
+        <form class="chips" id="addForm" autocomplete="off" style="margin:16px 0">
+          <input id="hTicker" placeholder="Ticker" maxlength="12" style="width:140px">
+          <input id="hShares" type="number" step="any" min="0" placeholder="Shares" style="width:130px">
+          <input id="hCost" type="number" step="any" min="0" placeholder="Avg cost per share" style="width:190px">
+          <button class="btn lime" type="submit">Add holding</button>
+        </form>
+        <div id="fullHoldings"></div>
+      </div>
+    </section>
+
+    <!-- PREDICTIONS -->
+    <section id="view-predict" class="view hidden">
+      <div class="card">
+        <div class="top-inline">
+          <div>
+            <h2 id="pTicker" style="font-size:22px">—</h2>
+            <div class="hint" id="pName"></div>
+          </div>
+          <select id="period">
+            <option value="6mo">6 months</option>
+            <option value="1y" selected>1 year</option>
+            <option value="2y">2 years</option>
+            <option value="5y">5 years</option>
+          </select>
+        </div>
+        <div class="chartbox"><canvas id="chart"></canvas></div>
       </div>
 
-    </div><!-- end learn tab -->
+      <div class="grid horizons" id="horizons" style="margin-top:16px"></div>
 
-    <div class="note">Predictions are for educational purposes only. Not financial advice.</div>
-  </div>
+      <div class="grid two">
+        <div class="card">
+          <h2>Model</h2>
+          <div class="hint">Random Forest, trained on past prices with a chronological test split</div>
+          <div id="modelInfo" class="empty" style="padding-top:12px">Pick a ticker to see the model.</div>
+        </div>
+        <div class="card">
+          <h2>Add to holdings</h2>
+          <div class="hint" style="margin-bottom:12px">Save this ticker to your portfolio</div>
+          <div class="chips">
+            <input id="pShares" type="number" step="any" min="0" placeholder="Shares" style="width:120px">
+            <input id="pCost" type="number" step="any" min="0" placeholder="Avg cost" style="width:120px">
+            <button class="btn" id="pAdd" type="button">Add</button>
+          </div>
+          <div class="hint" style="margin:18px 0 10px">Quick picks</div>
+          <div class="chips" id="quick"></div>
+        </div>
+      </div>
+    </section>
 
-</div><!-- end .wrap -->
-</div><!-- end .main -->
-
-<!-- Watchlist sidebar -->
-<div class="watchlist">
-  <div class="wl-header">watchlist <span>saved locally</span></div>
-  <div id="wlList"><div class="wl-empty">No stocks added yet.</div></div>
+    <!-- DIVIDENDS -->
+    <section id="view-dividends" class="view hidden">
+      <div class="card">
+        <div class="top-inline">
+          <div>
+            <h2>High dividend ETFs</h2>
+            <div class="hint" id="divStatus">Loading...</div>
+          </div>
+          <label class="hint" style="display:flex;align-items:center;gap:8px">
+            Min yield %
+            <input id="minYield" type="number" step="0.5" min="0" value="4" style="width:90px">
+          </label>
+        </div>
+        <div id="divTable"></div>
+      </div>
+    </section>
+  </main>
 </div>
 
-</div><!-- end .layout -->
 <script>
-  let chartInst = null;
-  let curTicker = '';
+  const $ = id => document.getElementById(id);
+  const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const money = n => (n == null || isNaN(n)) ? '—' : '$' + fmt(n);
+  const pct = n => (n == null || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n) + '%';
+  const cls = n => (n > 0 ? 'up' : n < 0 ? 'down' : '');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clean = t => (t || '').toUpperCase().trim().replace(/[^A-Z0-9.\-^=]/g, '');
 
-  document.getElementById('ticker').addEventListener('keydown', e => {
-    if (e.key === 'Enter') run();
+  const POPULAR = [
+    ['AAPL', 'Apple'], ['MSFT', 'Microsoft'], ['GOOGL', 'Alphabet'], ['NVDA', 'Nvidia'],
+    ['TSLA', 'Tesla'], ['SPY', 'S&P 500 ETF'], ['QQQ', 'Nasdaq 100 ETF'], ['QQQI', 'QQQI'],
+    ['SCHD', 'SCHD'], ['JEPQ', 'JEPQ'],
+  ];
+
+  // state
+  const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  let holdings = load('holdings', []);      // [{ticker, shares, cost}]
+  let selected = load('selected', 'AAPL');
+  const cache = {};                          // ticker -> {at, data}
+  const priced = {};                         // ticker -> predict/all result or {error}
+  let chart = null;
+  let divTimer = null;
+
+  async function api(path) {
+    const r = await fetch(path);
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || 'Request failed');
+    return body;
+  }
+
+  async function predict(t) {
+    const hit = cache[t];
+    if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
+    const data = await api(`/predict/all?ticker=${encodeURIComponent(t)}`);
+    cache[t] = { at: Date.now(), data };
+    return data;
+  }
+
+  // views
+  const TITLES = {
+    overview: ['Overview', 'Your holdings and model forecasts'],
+    holdings: ['My holdings', 'Saved in this browser'],
+    predict: ['Predictions', 'Model forecasts for any ticker'],
+    dividends: ['High dividend ETFs', 'Scanned live from US ETFs'],
+  };
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
+    document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    $('title').textContent = TITLES[name][0];
+    $('subtitle').textContent = TITLES[name][1];
+  }
+
+  // holdings and portfolio
+  function holdingsTable(rows, full) {
+    if (!rows.length) return '<div class="empty">No holdings yet. Add one below or from Predictions.</div>';
+    const head = `<tr><th>Ticker</th><th class="num">Shares</th><th class="num">Price</th><th class="num">Value</th><th class="num">P/L</th>${full ? '<th class="num">Forecast</th><th></th>' : ''}</tr>`;
+    const body = rows.map(({ h, d, v }) => {
+      if (!v) {
+        const msg = d && d.error ? esc(d.error) : 'loading...';
+        return `<tr class="click" data-open="${esc(h.ticker)}"><td><b>${esc(h.ticker)}</b></td><td class="num">${fmt(h.shares, 4)}</td><td colspan="${full ? 5 : 3}" class="num hint">${msg}</td>${full ? `<td><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>` : ''}</tr>`;
+      }
+      return `<tr class="click" data-open="${esc(h.ticker)}">
+        <td><b>${esc(h.ticker)}</b></td>
+        <td class="num">${fmt(h.shares, 4)}</td>
+        <td class="num">${money(v.price)}</td>
+        <td class="num">${money(v.value)}</td>
+        <td class="num ${cls(v.pl)}">${money(v.pl)}<br><span class="hint">${pct(v.plPct)}</span></td>
+        ${full ? `<td class="num ${cls(v.forecastPct)}">${money(v.forecast)}<br><span class="hint">${pct(v.forecastPct)}</span></td><td><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>` : ''}
+      </tr>`;
+    }).join('');
+    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  function valueRow(h, d) {
+    const price = d.current_price;
+    const value = h.shares * price;
+    const cost = h.shares * h.cost;
+    const model = d.predictions[d.predictions.length - 1];
+    const forecast = h.shares * model.predicted_price;
+    return {
+      price, value, cost,
+      pl: value - cost,
+      plPct: cost ? (value - cost) / cost * 100 : null,
+      forecast,
+      forecastPct: value ? (forecast - value) / value * 100 : null,
+    };
+  }
+
+  function renderPortfolio() {
+    const rows = holdings.map(h => {
+      const d = priced[h.ticker];
+      return { h, d, v: d && !d.error ? valueRow(h, d) : null };
+    });
+    const done = rows.filter(r => r.v);
+    const value = done.reduce((s, r) => s + r.v.value, 0);
+    const cost = done.reduce((s, r) => s + r.v.cost, 0);
+    const forecast = done.reduce((s, r) => s + r.v.forecast, 0);
+    const pl = value - cost;
+
+    $('sValue').textContent = done.length ? money(value) : '—';
+    $('sValuePill').textContent = holdings.length ? `${done.length} of ${holdings.length} priced` : 'no holdings yet';
+    $('sCost').textContent = done.length ? money(cost) : '—';
+    $('sPL').textContent = done.length ? money(pl) : '—';
+    $('sPL').className = 'value ' + cls(pl);
+    $('sPLPill').textContent = cost ? pct(pl / cost * 100) : '—';
+    $('sPLPill').className = 'pill ' + cls(pl);
+    $('sPred').textContent = done.length ? money(forecast) : '—';
+    const fp = value ? (forecast - value) / value * 100 : null;
+    $('sPredPill').textContent = fp == null ? 'model horizon' : pct(fp) + ' vs now';
+    $('sPredPill').className = 'pill ' + cls(fp);
+
+    $('ovHoldings').innerHTML = holdingsTable(rows, false);
+    $('fullHoldings').innerHTML = holdingsTable(rows, true);
+  }
+
+  async function refreshOne(t) {
+    try { priced[t] = await predict(t); }
+    catch (e) { priced[t] = { error: e.message }; }
+    renderPortfolio();
+  }
+
+  async function refreshAllHoldings() {
+    for (const h of holdings) {
+      if (priced[h.ticker] && !priced[h.ticker].error) continue;
+      await refreshOne(h.ticker); // one at a time to stay under Yahoo's rate limit
+    }
+  }
+
+  function addHolding(t, shares, cost) {
+    t = clean(t);
+    shares = Number(shares);
+    if (!t || !(shares > 0)) return false;
+    holdings = holdings.filter(h => h.ticker !== t).concat({ ticker: t, shares, cost: Number(cost) || 0 });
+    save('holdings', holdings);
+    refreshOne(t);
+    return true;
+  }
+
+  function removeHolding(t) {
+    holdings = holdings.filter(h => h.ticker !== t);
+    delete priced[t];
+    save('holdings', holdings);
+    renderPortfolio();
+  }
+
+  // predictions view
+  async function openPredict(t) {
+    t = clean(t);
+    if (!t) return;
+    selected = t;
+    save('selected', t);
+    showView('predict');
+    $('pTicker').textContent = t;
+    $('pName').textContent = 'Loading...';
+    $('horizons').innerHTML = '';
+    $('pCost').value = '';
+    try {
+      const [d, hist] = await Promise.all([
+        predict(t),
+        api(`/history?ticker=${encodeURIComponent(t)}&period=${$('period').value}`),
+      ]);
+      renderPredict(d, hist);
+    } catch (e) {
+      $('pName').textContent = e.message;
+    }
+  }
+
+  function renderPredict(d, hist) {
+    $('pName').textContent = `Current price ${money(d.current_price)}`;
+    $('pCost').placeholder = fmt(d.current_price);
+
+    $('horizons').innerHTML = d.predictions.map(p => `
+      <div class="card">
+        <div class="label">${esc(p.horizon)}</div>
+        <div class="value">${money(p.predicted_price)}</div>
+        <span class="pill ${cls(p.expected_return_pct)}">${pct(p.expected_return_pct)}</span>
+        <div class="hint" style="margin-top:10px">${p.days} trading days</div>
+      </div>`).join('');
+
+    if (chart) chart.destroy();
+    chart = new Chart($('chart'), {
+      type: 'line',
+      data: {
+        labels: hist.dates,
+        datasets: [{
+          label: 'Close',
+          data: hist.prices,
+          borderColor: '#5fa30c',
+          backgroundColor: 'rgba(184, 240, 79, 0.18)',
+          fill: true,
+          pointRadius: 0,
+          tension: 0.25,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { callback: v => '$' + v } },
+        },
+      },
+    });
+
+    $('modelInfo').className = '';
+    $('modelInfo').style.paddingTop = '12px';
+    $('modelInfo').innerHTML = `
+      <div style="display:grid;gap:8px">
+        <div>Model horizon: <b>${d.model_horizon_days} trading days</b></div>
+        <div>${d.fallback_used
+          ? `Not enough history for a full year, so the model ran on a ${d.model_horizon_days} day horizon.`
+          : 'Ran at the full 1 year horizon.'}</div>
+        <div class="hint">Forecasts use past prices only. They do not include dividends and are not financial advice.</div>
+      </div>`;
+  }
+
+  // dividends
+  function dividendTable(rows, small) {
+    if (!rows.length) return '<div class="empty">Nothing found yet.</div>';
+    const head = `<tr><th>Ticker</th>${small ? '' : '<th>Name</th>'}<th class="num">Yield</th></tr>`;
+    const body = rows.map(r => `
+      <tr class="click" data-open="${esc(r.ticker)}">
+        <td><b>${esc(r.ticker)}</b></td>
+        ${small ? '' : `<td>${esc(r.name)}</td>`}
+        <td class="num up">${fmt(r.dividend_yield_pct)}%</td>
+      </tr>`).join('');
+    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  async function loadDividends() {
+    clearTimeout(divTimer);
+    const min = Number($('minYield').value) || 4;
+    try {
+      const d = await api(`/dividend-etfs?min_yield_pct=${min}`);
+      if (d.status === 'error') {
+        $('divStatus').textContent = 'The ETF scan failed. Restart the server to try again.';
+        $('ovDividends').innerHTML = '<div class="empty">Scan failed.</div>';
+        return;
+      }
+      $('divStatus').textContent = d.status === 'ready'
+        ? `${d.etfs.length} ETFs at ${min}% or more, out of ${d.total} checked.`
+        : `Scanning: ${d.scanned} of ${d.total} checked, ${d.etfs.length} found so far.`;
+      $('divTable').innerHTML = dividendTable(d.etfs, false);
+      $('ovDividends').innerHTML = dividendTable(d.etfs.slice(0, 6), true);
+      if (d.status !== 'ready') divTimer = setTimeout(loadDividends, 15000);
+    } catch (e) {
+      $('divStatus').textContent = 'Could not load: ' + e.message;
+    }
+  }
+
+  // events
+  document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.view;
+    if (v === 'predict') openPredict(selected);
+    else if (v === 'holdings') { showView(v); renderPortfolio(); }
+    else showView(v);
+  }));
+
+  document.addEventListener('click', e => {
+    const rm = e.target.closest('[data-remove]');
+    if (rm) { removeHolding(rm.dataset.remove); return; }
+    const op = e.target.closest('[data-open]');
+    if (op) openPredict(op.dataset.open);
   });
 
+  $('lookupForm').addEventListener('submit', e => {
+    e.preventDefault();
+    openPredict($('tickerInput').value);
+    $('tickerInput').value = '';
+  });
 
-  function quickLook(ticker) {
-    document.getElementById('ticker').value = ticker;
-    run();
-  }
-
-  function fmt(n) {
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  function fmtMcap(n) {
-    if (!n) return 'N/A';
-    if (n >= 1e12) return '$' + (n/1e12).toFixed(2) + 'T';
-    if (n >= 1e9)  return '$' + (n/1e9).toFixed(2) + 'B';
-    if (n >= 1e6)  return '$' + (n/1e6).toFixed(2) + 'M';
-    return '$' + n.toLocaleString();
-  }
-
-  async function run() {
-    const ticker = document.getElementById('ticker').value.trim().toUpperCase();
-    if (!ticker) return;
-    curTicker = ticker;
-
-    document.getElementById('error').classList.remove('show');
-    document.getElementById('result').classList.remove('show');
-    document.getElementById('loading').classList.add('show');
-    document.getElementById('btn').disabled = true;
-
-    // Loading message cycle
-    const messages = [
-      'Fetching market data...',
-      'Engineering features...',
-      'Training model...',
-      'Running predictions...',
-      'Almost done...'
-    ];
-    let msgIndex = 0;
-    document.getElementById('loadingMsg').textContent = messages[0];
-    const msgInterval = setInterval(() => {
-      msgIndex = (msgIndex + 1) % messages.length;
-      document.getElementById('loadingMsg').textContent = messages[msgIndex];
-    }, 6000);
-
-
-    try {
-      const [predRes, infoRes] = await Promise.all([
-        fetch(`/predict/all?ticker=${ticker}`),
-        fetch(`/info?ticker=${ticker}`)
-      ]);
-      clearInterval(msgInterval);
-
-      if (!predRes.ok) {
-        const e = await predRes.json();
-        throw new Error(e.detail || 'Prediction failed');
-      }
-
-      const pred = await predRes.json();
-      const info = infoRes.ok ? await infoRes.json() : null;
-
-      document.getElementById('sName').textContent = info ? info.company_name : ticker;
-      document.getElementById('sSub').textContent = [ticker, info?.sector, info?.industry].filter(Boolean).join(' · ');
-      document.getElementById('sPrice').textContent = fmt(pred.current_price);
-
-      // Predictions
-      const predDiv = document.getElementById('predRows');
-      predDiv.innerHTML = '';
-      const predDetails = {
-        '1 Month': {
-          short: 'Short-term estimate scaled from the 1-year model.',
-          full: `This is <strong>not a separate model</strong> — it's the 1-year prediction scaled down proportionally.<br><br>
-            Formula: <code>1-year return ÷ 12</code><br><br>
-            Short-term stock movement is largely unpredictable even for professionals. Use this as a rough directional signal only, not a specific price target.`
-        },
-        '6 Months': {
-          short: 'Medium-term estimate scaled from the 1-year model.',
-          full: `Scaled as <code>1-year return ÷ 2</code>.<br><br>
-            More meaningful than 1-month but still uncertain. Good for understanding the general trend direction the model sees.`
-        },
-        '1 Year': {
-          short: 'The core ML prediction trained on 10 years of historical data.',
-          full: `Built using a <strong>Random Forest Regressor</strong> trained on 10 years of daily price data.<br><br>
-            Features used: Moving averages (20/50/200 day), RSI, MACD, volatility, volume, lag prices.<br><br>
-            <strong>Directional accuracy: ~54%</strong> — slightly better than a coin flip. Use as one signal among many, not a guarantee.`
-        },
-      };
-      pred.predictions.forEach((p, idx) => {
-        const up = p.expected_return_pct >= 0;
-        const det = predDetails[p.horizon] || {};
-        const eid = 'expPred' + idx;
-        predDiv.innerHTML += `
-          <div style="font-family:monospace;font-size:15px;margin-bottom:4px;">
-            <span style="display:inline-block;width:90px;color:#888;">
-              <span class="etip" onclick="toggleExp('${eid}')">${p.horizon} <span class="etip-icon">[+]</span></span>:
-            </span>
-            ${fmt(p.predicted_price)}
-            <span style="color:${up ? '#1a7f37' : '#c00'}">${up ? '+' : ''}${p.expected_return_pct.toFixed(2)}%</span>
-          </div>
-          <div class="etip-box" id="${eid}" style="font-family:system-ui,sans-serif;">${det.full || det.short || ''}</div>`;
-      });
-
-      // Info
-      const infoRow = document.getElementById('infoRow');
-      infoRow.innerHTML = '';
-      if (info) {
-        const infoItems = [
-          { lbl: 'Market Cap', val: fmtMcap(info.market_cap), id: 'expMcap',
-            short: 'Total value of all shares combined.',
-            full: `<strong>Market Cap = Share Price × Total Shares</strong><br><br>
-              <strong>Large cap</strong> >$10B = established, stable companies (Apple, Microsoft)<br>
-              <strong>Mid cap</strong> $2–10B = growth potential, moderate risk<br>
-              <strong>Small cap</strong> &lt;$2B = higher growth potential but higher risk<br><br>
-              Bigger is not always better — many small caps have outperformed giants.` },
-          { lbl: 'P/E Ratio',  val: info.pe_ratio ? info.pe_ratio.toFixed(2) : 'N/A', id: 'expPE',
-            short: 'Price-to-Earnings. How much you pay per $1 of company profit.',
-            full: `<strong>P/E = Current Price ÷ Earnings Per Share</strong><br><br>
-              Think of it as: how many years of current earnings are you paying for?<br><br>
-              <strong>Under 15</strong> = potentially cheap<br>
-              <strong>15–25</strong> = fair value range (S&P 500 avg ~25)<br>
-              <strong>25–40</strong> = growth premium being paid<br>
-              <strong>Over 40</strong> = very expensive, high growth expected<br>
-              <strong>Negative</strong> = company is losing money<br><br>
-              Always compare P/E to other companies in the same industry.` },
-          { lbl: '52W High',   val: fmt(info.fifty_two_week_high), id: 'exp52H',
-            short: 'Highest price this stock traded at in the past 52 weeks.',
-            full: `If the current price is <strong>far below the 52W high</strong>, the stock has pulled back significantly.<br><br>
-              This could mean:<br>
-              • A buying opportunity if the company is still fundamentally strong<br>
-              • A warning sign if the drop was caused by bad earnings or news<br><br>
-              Always find out <em>why</em> a stock dropped before buying the dip.` },
-          { lbl: '52W Low',    val: fmt(info.fifty_two_week_low), id: 'exp52L',
-            short: 'Lowest price this stock traded at in the past 52 weeks.',
-            full: `If the current price is <strong>near the 52W low</strong>, the stock is at a historically cheap level.<br><br>
-              This could mean:<br>
-              • Undervalued — a great entry point for a strong company<br>
-              • A value trap — the company may be in real trouble<br><br>
-              Check: Is revenue still growing? Did they have recent bad earnings? Is the whole sector down?` },
-        ];
-        infoItems.forEach(i => {
-          infoRow.innerHTML += `
-            <div class="info-item">
-              <div class="lbl">
-                <span class="etip" onclick="toggleExp('${i.id}')">
-                  ${i.lbl} <span class="etip-icon">[+]</span>
-                </span>
-              </div>
-              <div class="val">${i.val}</div>
-              <div class="etip-box" id="${i.id}">${i.full}</div>
-            </div>`;
-        });
-      }
-
-      // ── Signal card ──────────────────────────────────────────────────────
-      const yearPred = pred.predictions.find(p => p.horizon === '1 Year');
-      const ret = yearPred ? yearPred.expected_return_pct : 0;
-      const pe  = info ? info.pe_ratio : null;
-
-      let signal = 'HOLD';
-      let reason = '';
-
-      if (ret > 8 && (pe === null || pe < 35)) {
-        signal = 'BUY';
-        reason = `Model predicts +${ret.toFixed(1)}% over 1 year${pe ? ` with a P/E of ${pe.toFixed(1)} — reasonably valued` : ''}.`;
-      } else if (ret < -5 || (pe !== null && pe > 60)) {
-        signal = 'SELL';
-        reason = `Model predicts ${ret.toFixed(1)}% over 1 year${pe && pe > 60 ? ` and P/E of ${pe.toFixed(1)} suggests the stock may be overvalued` : ''}.`;
-      } else {
-        reason = `Model predicts +${ret.toFixed(1)}% — modest growth. ${pe ? `P/E of ${pe.toFixed(1)} is within normal range.` : ''} Monitor before acting.`;
-      }
-
-      const badge = document.getElementById('signalBadge');
-      badge.textContent = signal;
-      badge.className = 'signal-badge ' + signal.toLowerCase();
-      document.getElementById('signalReason').textContent = reason;
-      document.getElementById('signalCard').style.display = 'flex';
-
-      // ── Related ETFs ─────────────────────────────────────────────────────
-      const etfMap = {
-        'AAPL': ['QQQ','SPY','VTI','XLK','IVV'],
-        'MSFT': ['QQQ','SPY','VTI','XLK','IVV'],
-        'GOOGL':['QQQ','SPY','XLC','VTI'],
-        'AMZN': ['QQQ','SPY','XLY','VTI'],
-        'NVDA': ['QQQ','SMH','SOXX','XLK','VTI'],
-        'TSLA': ['QQQ','XLY','ARKK','VTI'],
-        'META': ['QQQ','XLC','SPY','VTI'],
-        'JPM':  ['XLF','VFH','SPY','KBE'],
-        'SPY':  ['VOO','IVV','VTI'],
-        'BRK-B':['XLF','VFH','SPY'],
-        'AMD':  ['SMH','SOXX','QQQ','XLK'],
-        'NFLX': ['QQQ','XLC','SPY'],
-        'DIS':  ['XLC','SPY','VTI'],
-      };
-      const etfs = etfMap[curTicker] || ['SPY','QQQ','VTI'];
-      const etfChips = document.getElementById('etfChips');
-      etfChips.innerHTML = etfs.map(e =>
-        `<button class="etf-chip" onclick="quickLook('${e}')">${e}</button>`
-      ).join('');
-      document.getElementById('etfSection').style.display = 'block';
-      renderValuation(info, pred.current_price);
-
-      document.getElementById('loading').classList.remove('show');
-      document.getElementById('result').classList.add('show');
-      const addBtn = document.getElementById('addWatchBtn');
-      addBtn.classList.add('visible');
-      addBtn.textContent = '+ Add to Watchlist';
-      addBtn.disabled = false;
-      loadChart('1y');
-
-    } catch (err) {
-      clearInterval(msgInterval);
-      document.getElementById('loading').classList.remove('show');
-      document.getElementById('error').textContent = '⚠ ' + err.message;
-      document.getElementById('error').classList.add('show');
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (addHolding($('hTicker').value, $('hShares').value, $('hCost').value)) {
+      $('hTicker').value = ''; $('hShares').value = ''; $('hCost').value = '';
     }
+  });
 
-    document.getElementById('btn').disabled = false;
-  }
+  $('pAdd').addEventListener('click', () => {
+    addHolding(selected, $('pShares').value, $('pCost').value || (priced[selected] && priced[selected].current_price));
+  });
 
-  async function loadChart(period) {
-    if (!curTicker) return;
-    document.querySelectorAll('.tab').forEach(t =>
-      t.classList.toggle('active', t.textContent === period.replace('mo','M').replace('y','Y'))
-    );
-    try {
-      const res = await fetch(`/history?ticker=${curTicker}&period=${period}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (chartInst) chartInst.destroy();
-      const ctx = document.getElementById('chart').getContext('2d');
-      chartInst = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: data.dates,
-          datasets: [{
-            data: data.prices,
-            borderColor: '#4a9eff',
-            borderWidth: 1.5,
-            backgroundColor: 'rgba(74,158,255,0.08)',
-            fill: true,
-            pointRadius: 0,
-            tension: 0.2,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: '#111',
-              borderColor: '#333',
-              borderWidth: 1,
-              titleColor: '#666',
-              bodyColor: '#fff',
-              titleFont: { family: 'IBM Plex Mono', size: 11 },
-              bodyFont: { family: 'IBM Plex Mono', size: 13, weight: '600' },
-              callbacks: { label: item => ' $' + Number(item.raw).toFixed(2) }
-            }
-          },
-          scales: {
-            x: {
-              grid: { display: false },
-              ticks: { color: '#aaa', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 6 },
-              border: { display: false }
-            },
-            y: {
-              position: 'right',
-              grid: { display: false },
-              ticks: { color: '#aaa', font: { family: 'IBM Plex Mono', size: 10 }, callback: v => '$' + v.toFixed(0) },
-              border: { display: false }
-            }
-          }
-        }
-      });
-    } catch(e) { console.error(e); }
-  }
+  $('period').addEventListener('change', () => openPredict(selected));
+  $('minYield').addEventListener('change', loadDividends);
 
-  // ── Watchlist ──────────────────────────────────────────────────────────────
-  function loadWatchlist() {
-    try { return JSON.parse(localStorage.getItem('watchlist') || '[]'); }
-    catch { return []; }
-  }
+  $('quick').innerHTML = POPULAR.map(([t, n]) => `<button class="chip" data-open="${t}">${t} · ${esc(n)}</button>`).join('');
 
-  function saveWatchlist(list) {
-    localStorage.setItem('watchlist', JSON.stringify(list));
-  }
-
-  function renderWatchlist() {
-    const list = loadWatchlist();
-    const el = document.getElementById('wlList');
-    if (list.length === 0) {
-      el.innerHTML = '<div class="wl-empty">No stocks added yet.</div>';
-      return;
-    }
-    el.innerHTML = list.map((s, i) => `
-      <div class="wl-item" onclick="quickLook('${s.ticker}')">
-        <button class="wl-remove" onclick="event.stopPropagation(); removeFromWatchlist(${i})">✕</button>
-        <div class="wl-ticker">${s.ticker}</div>
-        <div class="wl-name">${s.name}</div>
-        <div class="wl-price">${s.price}</div>
-        <div class="wl-date">Added ${s.date}</div>
-      </div>
-    `).join('');
-  }
-
-  function addToWatchlist() {
-    const ticker = curTicker;
-    const name = document.getElementById('sName').textContent;
-    const price = document.getElementById('sPrice').textContent;
-    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-    const list = loadWatchlist();
-    if (list.find(s => s.ticker === ticker)) {
-      alert(ticker + ' is already in your watchlist.');
-      return;
-    }
-    list.push({ ticker, name, price, date });
-    saveWatchlist(list);
-    renderWatchlist();
-    document.getElementById('addWatchBtn').textContent = '✓ Added';
-    document.getElementById('addWatchBtn').disabled = true;
-  }
-
-  function removeFromWatchlist(index) {
-    const list = loadWatchlist();
-    list.splice(index, 1);
-    saveWatchlist(list);
-    renderWatchlist();
-  }
-
-  // Show add button after results load
-  const origRun = run;
-
-  // Render watchlist on page load
-  renderWatchlist();
-
-
-  function showTab(name) {
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + name).classList.add('active');
-    document.querySelectorAll('.main-tab').forEach(t => {
-      if (t.textContent.toLowerCase() === name) t.classList.add('active');
-    });
-  }
-
-  function renderValuation(info, currentPrice) {
-    if (!info || !info.pe_ratio) return;
-    const pe = info.pe_ratio;
-    // Estimate EPS from current price and P/E
-    const eps = currentPrice / pe;
-    const growthRate = 10; // assumed 10% growth
-    const intrinsic = eps * (8.5 + 2 * growthRate);
-    const diff = ((currentPrice - intrinsic) / intrinsic) * 100;
-    const isOver = currentPrice > intrinsic;
-
-    const rows = [
-      { lbl: 'Current Price',    num: fmt(currentPrice) },
-      { lbl: 'Est. EPS',         num: '$' + eps.toFixed(2) },
-      { lbl: 'Assumed Growth',   num: growthRate + '%/yr' },
-      { lbl: 'Graham Intrinsic Value', num: fmt(intrinsic) },
-      { lbl: 'Difference',       num: (isOver ? '+' : '') + diff.toFixed(1) + '%' },
-    ];
-
-    const explanations = {
-      'Current Price': { short: 'The price of one share right now on the stock market.', full: '' },
-      'Est. EPS': {
-        short: 'Earnings Per Share — how much profit the company made per share last year.',
-        full: `<strong>EPS = Total Company Profit ÷ Shares Outstanding</strong><br><br>
-          Calculated here as: <code>Current Price ÷ P/E Ratio = EPS</code><br><br>
-          Example: $${currentPrice.toFixed(2)} ÷ ${pe.toFixed(2)} = $${eps.toFixed(2)} per share earned<br><br>
-          <strong>Rising EPS</strong> = company getting more profitable ✓<br>
-          <strong>Falling EPS</strong> = profits shrinking, investigate why<br>
-          <strong>Negative EPS</strong> = company losing money, high risk`
-      },
-      'Assumed Growth': {
-        short: 'The annual earnings growth rate used in the Graham formula.',
-        full: `The Benjamin Graham formula assumes <strong>10% annual growth</strong> as a baseline for an average healthy company.<br><br>
-          High-growth tech companies (NVDA, META) often grow faster — meaning their fair value could be higher.<br>
-          Slow-growth companies (utilities, banks) may grow less — meaning 10% is generous.`
-      },
-      'Graham Intrinsic Value': {
-        short: "An estimate of what the stock is truly worth based on earnings and growth.",
-        full: `<strong>Formula: EPS × (8.5 + 2 × growth rate)</strong><br><br>
-          8.5 = Benjamin Graham's base P/E for a company with zero growth<br>
-          2 × growth rate = premium added for expected earnings growth<br><br>
-          If current price is <strong>below</strong> this value → potentially undervalued ✓<br>
-          If current price is <strong>above</strong> this value → you may be paying a premium`
-      },
-      'Difference': {
-        short: 'How far the current price is from the estimated fair value.',
-        full: `<strong>Negative %</strong> = stock is trading <em>below</em> fair value (potentially a good buy)<br>
-          <strong>Positive %</strong> = stock is trading <em>above</em> fair value (you're paying a premium)<br><br>
-          Note: This is one signal only. Always cross-check with P/E ratio, recent earnings, and market conditions.`
-      },
-    };
-
-    document.getElementById('valRows').innerHTML = rows.map(r => {
-      const exp = explanations[r.lbl];
-      if (!exp) return `<div class="val-row"><span class="lbl">${r.lbl}</span><span class="num">${r.num}</span></div>`;
-      const id = 'exp-' + r.lbl.replace(/[^a-z]/gi, '');
-      return `
-        <div class="val-row">
-          <span class="lbl">
-            <span class="etip" onclick="toggleExp('${id}')">
-              ${r.lbl} <span class="etip-icon">[+]</span>
-            </span>
-          </span>
-          <span class="num">${r.num}</span>
-        </div>
-        <div class="etip-box" id="${id}">${exp.full || exp.short}</div>`;
-    }).join('');
-
-    const verdict = document.getElementById('valVerdict');
-    if (isOver) {
-      verdict.className = 'val-verdict over';
-      verdict.textContent = `Trading ${Math.abs(diff).toFixed(1)}% above estimated fair value. You may be paying a premium. This is normal for high-growth companies.`;
-    } else {
-      verdict.className = 'val-verdict under';
-      verdict.textContent = `Trading ${Math.abs(diff).toFixed(1)}% below estimated fair value. The stock may be undervalued based on current earnings.`;
-    }
-    document.getElementById('valBox').style.display = 'block';
-  }
-
-
-  // ── High dividend ETFs (found live by the backend) ──────────────────────
-  async function loadDividendEtfs() {
-    const grid = document.getElementById('divGrid');
-    try {
-      const res = await fetch('/dividend-etfs?min_yield_pct=4');
-      if (!res.ok) throw new Error('bad response');
-      const data = await res.json();
-      if (data.status === 'error') {
-        grid.innerHTML = '<span class="popular-label">ETF scan failed, refresh the page to try again</span>';
-        return;
-      }
-      if (data.status !== 'ready') {
-        grid.innerHTML = `<span class="popular-label">scanning ETFs: ${data.scanned} of ${data.total} checked, ${data.etfs.length} found so far...</span>`;
-        setTimeout(loadDividendEtfs, 15000);
-        return;
-      }
-      if (!data.etfs || data.etfs.length === 0) {
-        grid.innerHTML = '<span class="popular-label">no ETFs above 4% right now</span>';
-        return;
-      }
-      grid.innerHTML = data.etfs.map(e =>
-        `<button class="pop-btn" onclick="quickLook('${e.ticker}')">${e.ticker} — ${e.dividend_yield_pct.toFixed(2)}%</button>`
-      ).join('');
-    } catch (err) {
-      grid.innerHTML = '<span class="popular-label">could not load dividend ETFs</span>';
-    }
-  }
-
-  function toggleDividends() {
-    const grid = document.getElementById('divGrid');
-    const arrow = document.getElementById('divArrow');
-    const open = grid.style.display === 'none';
-    grid.style.display = open ? '' : 'none';
-    arrow.innerHTML = open ? '&#9662;' : '&#9656;';
-  }
-
-  loadDividendEtfs();
-
-  function toggleExp(id) {
-    const box = document.getElementById(id);
-    if (!box) return;
-    box.classList.toggle('open');
-    // update the [+]/[-] icon inside the clicked etip
-    const allEtips = document.querySelectorAll('.etip');
-    allEtips.forEach(el => {
-      const icon = el.querySelector('.etip-icon');
-      if (!icon) return;
-      const eid = el.getAttribute('onclick').match(/'([^']+)'/);
-      if (eid && eid[1] === id) {
-        icon.textContent = box.classList.contains('open') ? '[-]' : '[+]';
-      }
-    });
-  }
+  // start
+  renderPortfolio();
+  loadDividends();
+  refreshAllHoldings();
 </script>
 </body>
 </html>
