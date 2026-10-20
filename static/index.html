@@ -139,6 +139,24 @@
   tr.click:hover td { background: rgba(255, 255, 255, 0.03); }
 
   .chartbox { position: relative; height: 320px; }
+
+  /* likely ranges */
+  .rrow { display: grid; grid-template-columns: 110px 1fr 300px; gap: 22px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--row-line); }
+  .rrow:last-child { border-bottom: 0; }
+  .rlabel .value { font-size: 18px; margin-top: 2px; }
+  .band { position: relative; height: 34px; }
+  .band .b { position: absolute; top: 6px; bottom: 6px; border-radius: 8px; }
+  .band .b90 { background: rgba(239, 234, 225, 0.10); }
+  .band .b80 { background: rgba(239, 234, 225, 0.20); top: 3px; bottom: 3px; }
+  .band .b50 { background: rgba(239, 234, 225, 0.40); top: 0; bottom: 0; }
+  .band .med { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
+  .band .now { position: absolute; top: -8px; bottom: -8px; width: 0; border-left: 2px dashed var(--accent); }
+  .band-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .rnums { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .rnums .k { color: var(--muted); }
+  .rlegend { display: flex; gap: 14px; align-items: center; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+  .rlegend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .rnote { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: -8px; }
   .donut { position: relative; height: 300px; }
 
   /* phones and small tablets */
@@ -152,6 +170,7 @@
     .hero { grid-template-columns: 1fr; padding: 24px; }
     .two { grid-template-columns: 1fr; }
     .horizons { grid-template-columns: 1fr; }
+    .rrow { grid-template-columns: 1fr; gap: 12px; }
     table { font-size: 13px; }
     th, td { padding: 10px 6px; }
   }
@@ -251,6 +270,23 @@
           </select>
         </div>
         <div class="chartbox"><canvas id="chart"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="top-inline">
+          <div>
+            <h2>Likely ranges</h2>
+            <div class="hint" id="rHint">Ranges, not predictions. Built from this stock's own past returns, scaled to today's volatility.</div>
+          </div>
+          <div class="rlegend">
+            <span><i style="background:rgba(239,234,225,0.40)"></i>50% range</span>
+            <span><i style="background:rgba(239,234,225,0.20)"></i>80%</span>
+            <span><i style="background:rgba(239,234,225,0.10)"></i>90%</span>
+            <span><i style="background:var(--ink);width:2px"></i>median</span>
+            <span><i style="border-left:2px dashed var(--accent);width:0;border-radius:0"></i>today</span>
+          </div>
+        </div>
+        <div id="rangesBody" class="empty">Pick a ticker to see its ranges.</div>
       </div>
 
       <div class="grid horizons" id="horizons" style="margin-top:16px"></div>
@@ -529,6 +565,7 @@
     $('pTicker').textContent = t;
     $('pName').textContent = 'Loading...';
     $('horizons').innerHTML = '';
+    loadRanges(t);
     try {
       const [d, hist] = await Promise.all([
         predict(t),
@@ -538,6 +575,60 @@
     } catch (e) {
       $('pName').textContent = e.message;
     }
+  }
+
+  // likely ranges: calibrated price ranges and risk figures
+  async function loadRanges(t) {
+    $('rangesBody').className = 'empty';
+    $('rangesBody').textContent = 'Building ranges...';
+    try {
+      const r = await api(`/ranges?ticker=${encodeURIComponent(t)}`);
+      if (selected === t) renderRanges(r);
+    } catch (e) {
+      if (selected === t) $('rangesBody').textContent = e.message;
+    }
+  }
+
+  function renderRanges(r) {
+    const all = r.horizons.flatMap(h => h.ranges.map(x => [x.low_price, x.high_price]).flat());
+    const lo = Math.min(...all, r.current_price);
+    const hi = Math.max(...all, r.current_price);
+    const pos = p => ((p - lo) / (hi - lo || 1) * 100).toFixed(2) + '%';
+    const span = (a, b) => `left:${pos(a)};width:calc(${pos(b)} - ${pos(a)})`;
+    const byLevel = h => Object.fromEntries(h.ranges.map(x => [x.level, x]));
+    const pct1 = n => (n == null || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n, 1) + '%';
+
+    $('rHint').textContent = `Ranges, not predictions. Built from this stock's own past returns, scaled to today's volatility (${fmt(r.current_volatility_annual_pct, 1)}% a year). Data as of ${r.as_of}.`;
+    $('rangesBody').className = '';
+    $('rangesBody').innerHTML = r.horizons.map(h => {
+      const g = byLevel(h);
+      return `
+      <div class="rrow">
+        <div class="rlabel">
+          <div class="hint">${esc(h.horizon)}</div>
+          <div class="value">${money(h.median_price)}</div>
+          <span class="pill ${cls(h.median_return_pct)}">median ${pct1(h.median_return_pct)}</span>
+        </div>
+        <div>
+          <div class="band" role="img" aria-label="${esc(h.horizon)}: 80% range ${money(g[80].low_price)} to ${money(g[80].high_price)}">
+            <div class="b b90" style="${span(g[90].low_price, g[90].high_price)}"></div>
+            <div class="b b80" style="${span(g[80].low_price, g[80].high_price)}"></div>
+            <div class="b b50" style="${span(g[50].low_price, g[50].high_price)}"></div>
+            <div class="med" style="left:${pos(h.median_price)}"></div>
+            <div class="now" style="left:${pos(r.current_price)}"></div>
+          </div>
+          <div class="band-axis"><span>${money(lo)}</span><span>${money(hi)}</span></div>
+        </div>
+        <div class="rnums">
+          <span class="k">80% range</span><span>${money(g[80].low_price)} to ${money(g[80].high_price)}</span>
+          <span class="k">50% range</span><span>${money(g[50].low_price)} to ${money(g[50].high_price)}</span>
+          <span class="k">Chance of a loss</span><span>${fmt(h.chance_of_loss_pct, 0)}%</span>
+          <span class="k">Bad case, 1 in 10</span><span class="${cls(h.bad_case_return_pct)}">${pct1(h.bad_case_return_pct)}</span>
+          <span class="k">Avg of worst 10%</span><span class="${cls(h.avg_worst_10pct_return_pct)}">${pct1(h.avg_worst_10pct_return_pct)}</span>
+        </div>
+        <div class="rnote">The 80% range held ${fmt(g[80].historical_hit_rate_pct, 0)}% of the time in tests, ${fmt(h.worst_year_hit_rate_80_pct, 0)}% in the worst year (${h.worst_year}).${h.note ? ' ' + esc(h.note) : ''}</div>
+      </div>`;
+    }).join('') + `<div class="hint" style="margin-top:14px">Tested walk forward on 93 large US stocks and ETFs that still trade today, so real misses are likely somewhat worse. Not financial advice.</div>`;
   }
 
   function renderPredict(d, hist) {
