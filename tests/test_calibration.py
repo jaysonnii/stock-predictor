@@ -71,3 +71,10 @@ def test_constant_volatility_data_is_roughly_calibrated():
     assert 72 <= s["in_80_pct"] <= 88
     assert 43 <= s["in_50_pct"] <= 57
     assert all(4 <= d <= 16 for d in pit_deciles(results))
+
+
+def test_time_zone_aware_prices_give_plain_dates():
+    close = make_prices(days=800)
+    close.index = close.index.tz_localize("America/New_York")
+    res = calibrate_ticker(close, horizon=21, step_days=100, min_history_days=300, n_sims=100)
+    assert res["Date"].dt.tz is None
