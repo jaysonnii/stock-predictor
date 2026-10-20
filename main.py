@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from model import predict_price, predict_price_with_fallback, train_model
 from data import fetch_stock_data
+from ranges import ranges_for_ticker
 
 app = FastAPI(
     title="Stock Price Predictor API",
@@ -73,6 +74,36 @@ class TrainResponse(BaseModel):
     test_samples: int
 
     message: str
+
+class PriceRange(BaseModel):
+    level: int
+    low_price: float
+    high_price: float
+    low_return_pct: float
+    high_return_pct: float
+    historical_hit_rate_pct: float
+
+class HorizonRange(BaseModel):
+    horizon: str
+    days: int
+    median_price: float
+    median_return_pct: float
+    ranges: list[PriceRange]
+    chance_of_loss_pct: float
+    bad_case_return_pct: float
+    avg_worst_10pct_return_pct: float
+    worst_year_hit_rate_80_pct: float
+    worst_year: int
+    shrink_factor: float
+    note: Optional[str]
+
+class RangesResponse(BaseModel):
+    ticker: str
+    current_price: float
+    as_of: str
+    current_volatility_annual_pct: float
+    horizons: list[HorizonRange]
+    method: str
 
 class HistoryResponse(BaseModel):
     ticker: str
@@ -172,6 +203,24 @@ def get_prediction(ticker: str, days: int = 252):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+
+@app.get("/ranges", response_model=RangesResponse)
+def get_ranges(ticker: str):
+    """
+    Price ranges (50%, 80%, 90%) and risk figures at 3, 6 and 12 months.
+    Uses a volatility-scaled bootstrap of past returns. Each range comes with
+    the share of real outcomes that landed inside it in walk-forward tests,
+    including the worst year, so the range is not read as a promise.
+    """
+    ticker = ticker.upper().strip()
+    try:
+        result = ranges_for_ticker(ticker)
+        return {**result, "method": "Volatility-scaled block bootstrap, walk-forward calibrated"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ranges failed: {str(e)}")
 
 
 @app.post("/train", response_model=TrainResponse)
