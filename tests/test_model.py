@@ -35,7 +35,7 @@ def test_training_uses_chronological_purge_gap(monkeypatch):
     monkeypatch.setattr(
         model,
         "engineer_features",
-        lambda dataframe, prediction_days: dataframe,
+        lambda dataframe, prediction_days, with_target=True: dataframe,
     )
 
     monkeypatch.setattr(
