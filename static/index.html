@@ -310,8 +310,17 @@
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   // holdings are {ticker, shares, costBasis} where costBasis is the total you paid.
-  // Entries saved before that change stored a per-share cost, so convert them.
-  let holdings = load('holdings', []).map(h => ({ ...h, costBasis: h.costBasis ?? (h.shares * (h.cost || 0)) }));
+  // Starting positions from your Robinhood account (Oct 19, 2026). They are used
+  // only until you change the list, which is saved under holdings_v2.
+  const SEED_HOLDINGS = [
+    { ticker: 'AMZN', shares: 2.1232, costBasis: 499.99 },
+    { ticker: 'AAOI', shares: 0.7788, costBasis: 99.99 },
+    { ticker: 'INTC', shares: 1.5, costBasis: 201.90 },
+    { ticker: 'NOK', shares: 10, costBasis: 139.85 },
+    { ticker: 'NVDA', shares: 1.7194, costBasis: 351.14 },
+    { ticker: 'VOO', shares: 1.2324, costBasis: 848.19 },
+  ];
+  let holdings = load('holdings_v2', null) ?? SEED_HOLDINGS;
   let etfWatch = load('etfWatch', []);
   let selected = load('selected', 'AAPL');
   const cache = {};   // ticker -> {at, data}
@@ -470,7 +479,7 @@
     costBasis = Number(costBasis);
     if (!t || !(shares > 0) || !(costBasis > 0)) return false;
     holdings = holdings.filter(h => h.ticker !== t).concat({ ticker: t, shares, costBasis });
-    save('holdings', holdings);
+    save('holdings_v2', holdings);
     refreshOne(t);
     return true;
   }
@@ -478,7 +487,7 @@
   function removeHolding(t) {
     holdings = holdings.filter(h => h.ticker !== t);
     delete priced[t];
-    save('holdings', holdings);
+    save('holdings_v2', holdings);
     renderPortfolio();
   }
 
