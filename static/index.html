@@ -4,90 +4,99 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #f3f4f1;
-    --card: #ffffff;
-    --ink: #111412;
-    --muted: #7a7f78;
-    --line: #e6e8e3;
-    --accent: #b8f04f;
-    --accent-ink: #0d1a05;
-    --dark: #111413;
-    --up: #15803d;
-    --down: #dc2626;
-    --radius: 18px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0f1110;
-      --card: #181b19;
-      --ink: #f2f4f3;
-      --muted: #8a918d;
-      --line: #2a2e2c;
-      --accent: #34d399;
-      --accent-ink: #04150c;
-      --dark: #0a0c0b;
-      --up: #34d399;
-      --down: #f48a8a;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0f1110;
-    --card: #181b19;
-    --ink: #f2f4f3;
-    --muted: #8a918d;
-    --line: #2a2e2c;
-    --accent: #34d399;
-    --accent-ink: #04150c;
-    --dark: #0a0c0b;
-    --up: #34d399;
-    --down: #f48a8a;
+    color-scheme: dark;
+    --bg: #07080a;
+    --ink: #efeae1;
+    --muted: #8d8a84;
+    --glass: rgba(255, 255, 255, 0.055);
+    --glass-strong: rgba(255, 255, 255, 0.09);
+    --glass-line: rgba(255, 255, 255, 0.11);
+    --row-line: rgba(255, 255, 255, 0.07);
+    --accent: #ff6a3d;
+    --accent-ink: #1a0a04;
+    --up: #6fd6a0;
+    --down: #ff8a80;
+    --radius: 22px;
+    --bloom-teal: rgba(31, 154, 134, 0.20);
+    --bloom-ember: rgba(255, 106, 61, 0.14);
+    --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--bg);
+    min-height: 100vh;
+    background:
+      radial-gradient(60% 50% at 85% 0%, var(--bloom-teal), transparent 70%),
+      radial-gradient(50% 45% at 0% 100%, var(--bloom-ember), transparent 70%),
+      var(--bg);
+    background-attachment: fixed;
     color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    font-family: "Instrument Sans", system-ui, -apple-system, sans-serif;
     font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
-  .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
 
   /* sidebar */
   .side {
-    background: var(--dark); color: #e9efe6;
-    padding: 24px 16px; position: sticky; top: 0; height: 100vh;
-    display: flex; flex-direction: column; gap: 10px;
+    position: sticky; top: 0; height: 100vh;
+    padding: 28px 18px; display: flex; flex-direction: column; gap: 18px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+    border-right: 1px solid var(--glass-line);
   }
-  .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 10px; padding: 6px 10px 22px; }
-  .logo .dot { width: 28px; height: 28px; border-radius: 9px; background: var(--accent); }
-  .nav { display: flex; flex-direction: column; gap: 6px; }
+  .logo { font-weight: 600; font-size: 17px; display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; letter-spacing: -0.01em; }
+  .logo .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 5px rgba(239, 234, 225, 0.08); }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
   .nav button {
-    all: unset; cursor: pointer; display: block; padding: 11px 12px;
-    border-radius: 12px; color: #b4bfb0; font-size: 14px; width: 100%; box-sizing: border-box;
+    all: unset; cursor: pointer; display: block; box-sizing: border-box;
+    padding: 10px 12px; border-radius: 12px; color: var(--muted); font-size: 14px; width: 100%;
   }
-  .nav button:hover { color: #fff; background: #232725; }
-  .nav button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .nav button:hover { color: var(--ink); background: var(--glass); }
+  .nav button.active { background: var(--ink); color: var(--bg); font-weight: 600; }
 
   /* layout */
-  main { padding: 28px 32px; min-width: 0; }
-  .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
-  h1 { font-size: 26px; margin: 0; }
-  h2 { font-size: 16px; margin: 0 0 4px; }
+  main { padding: 36px 40px; min-width: 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
+  h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+  h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
   .sub, .hint { color: var(--muted); font-size: 13px; }
-  .grid { display: grid; gap: 16px; }
-  .stats { grid-template-columns: repeat(4, 1fr); }
-  .two { grid-template-columns: 1.6fr 1fr; margin-top: 16px; }
+  .grid { display: grid; gap: 20px; }
+  .two { grid-template-columns: 1.6fr 1fr; margin-top: 20px; }
   .horizons { grid-template-columns: repeat(3, 1fr); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
-  .label { color: var(--muted); font-size: 13px; }
-  .value { font-size: 26px; font-weight: 700; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
-  .pill { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--bg); color: var(--muted); }
-  .pill.up { background: rgba(52, 211, 153, .16); }
-  .pill.down { background: rgba(244, 138, 138, .16); }
+  .card {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid var(--glass-line);
+    border-radius: var(--radius);
+    padding: 24px;
+    min-width: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), var(--shadow);
+  }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; align-items: end; }
+  .hero-value {
+    font-size: clamp(42px, 6vw, 68px); font-weight: 500; letter-spacing: -0.03em;
+    line-height: 1; margin: 14px 0 16px; font-variant-numeric: tabular-nums;
+  }
+  .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
+  .value { font-size: 24px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .pill {
+    display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px;
+    background: var(--glass-strong); border: 1px solid var(--glass-line); color: var(--muted);
+  }
+  .pill.up { color: var(--up); }
+  .pill.down { color: var(--down); }
   .up { color: var(--up); }
   .down { color: var(--down); }
   .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
@@ -95,30 +104,36 @@
 
   /* controls */
   input, select {
-    font: inherit; padding: 10px 12px; border: 1px solid var(--line);
-    border-radius: 12px; background: var(--bg); color: var(--ink); min-width: 0;
+    font: inherit; padding: 10px 14px; border: 1px solid var(--glass-line);
+    border-radius: 12px; background: var(--glass); color: var(--ink); min-width: 0;
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .btn {
-    font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 10px 16px;
-    background: var(--dark); color: #fff; cursor: pointer;
+    font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 10px 18px;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
   .btn.lime { background: var(--accent); color: var(--accent-ink); }
-  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 6px 10px; font-size: 13px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .chip {
-    all: unset; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line);
-    border-radius: 999px; font-size: 13px; background: var(--bg);
+  .btn.ghost {
+    background: var(--glass); color: var(--ink); border: 1px solid var(--glass-line);
+    font-weight: 500; padding: 6px 12px; font-size: 13px; box-shadow: none;
   }
-  .chip:hover { border-color: var(--accent); }
-  .top-inline { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .chip {
+    all: unset; cursor: pointer; padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    background: var(--glass); border: 1px solid var(--glass-line);
+  }
+  .chip:hover { background: var(--glass-strong); }
+  .top-inline { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
   /* tables */
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line); }
-  td { padding: 12px 8px; border-bottom: 1px solid var(--line); }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 10px 8px; border-bottom: 1px solid var(--row-line); }
+  td { padding: 14px 8px; border-bottom: 1px solid var(--row-line); font-variant-numeric: tabular-nums; }
+  .num { text-align: right; }
   tr.click { cursor: pointer; }
-  tr.click:hover td { background: var(--bg); }
+  tr.click:hover td { background: rgba(255, 255, 255, 0.03); }
 
   .chartbox { position: relative; height: 320px; }
   .donut { position: relative; height: 300px; }
@@ -127,14 +142,13 @@
   @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     .side { position: static; height: auto; flex-direction: column; padding: 14px 16px; }
-    .logo { padding: 0 0 10px; }
+    .logo { padding: 0 0 6px; }
     .nav { flex-direction: row; overflow-x: auto; }
     .nav button { width: auto; white-space: nowrap; }
-    main { padding: 18px 16px; }
-    .stats { grid-template-columns: 1fr 1fr; }
+    main { padding: 20px 16px; }
+    .hero { grid-template-columns: 1fr; padding: 24px; }
     .two { grid-template-columns: 1fr; }
     .horizons { grid-template-columns: 1fr; }
-    .value { font-size: 22px; }
     table { font-size: 13px; }
     th, td { padding: 10px 6px; }
   }
@@ -166,26 +180,27 @@
 
     <!-- HOLDINGS (home) -->
     <section id="view-holdings" class="view">
-      <div class="grid stats">
-        <div class="card">
+      <div class="card hero">
+        <div>
           <div class="label">Portfolio value</div>
-          <div class="value" id="sValue">—</div>
-          <span class="pill" id="sValuePill">no holdings yet</span>
+          <div class="hero-value" id="sValue">—</div>
+          <span class="hint" id="sValuePill">no holdings yet</span>
         </div>
-        <div class="card">
-          <div class="label">Cost basis</div>
-          <div class="value" id="sCost">—</div>
-          <span class="pill">what you paid</span>
-        </div>
-        <div class="card">
-          <div class="label">Unrealized P/L</div>
-          <div class="value" id="sPL">—</div>
-          <span class="pill" id="sPLPill">—</span>
-        </div>
-        <div class="card">
-          <div class="label">Model forecast</div>
-          <div class="value" id="sPred">—</div>
-          <span class="pill" id="sPredPill">model horizon</span>
+        <div class="hero-stats">
+          <div>
+            <div class="label">Unrealized P/L</div>
+            <div class="value" id="sPL">—</div>
+            <span class="pill" id="sPLPill">—</span>
+          </div>
+          <div>
+            <div class="label">Cost basis</div>
+            <div class="value" id="sCost">—</div>
+          </div>
+          <div>
+            <div class="label">Model forecast</div>
+            <div class="value" id="sPred">—</div>
+            <span class="pill" id="sPredPill">model horizon</span>
+          </div>
         </div>
       </div>
 
@@ -289,7 +304,7 @@
     ['NVDA', 'Nvidia'], ['TSLA', 'Tesla'], ['SPY', 'S&P 500 ETF'], ['QQQ', 'Nasdaq 100 ETF'],
     ['QQQI', 'QQQI'], ['SCHD', 'SCHD'], ['JEPQ', 'JEPQ'],
   ];
-  const PALETTE = ['#34d399', '#10b981', '#059669', '#047857', '#065f46', '#6ee7b7', '#a7f3d0', '#5eead4'];
+  const PALETTE = ['#c4623a', '#3d7fc0', '#6f9a3a', '#8a63b8', '#a0821c', '#1f9a86'];
 
   // state
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -507,8 +522,8 @@
         datasets: [{
           label: 'Close',
           data: hist.prices,
-          borderColor: '#34d399',
-          backgroundColor: 'rgba(52, 211, 153, 0.16)',
+          borderColor: '#efeae1',
+          backgroundColor: 'rgba(239, 234, 225, 0.08)',
           fill: true,
           pointRadius: 0,
           tension: 0.25,
