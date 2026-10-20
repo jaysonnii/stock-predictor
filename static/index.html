@@ -14,36 +14,36 @@
     --line: #e6e8e3;
     --accent: #b8f04f;
     --accent-ink: #0d1a05;
-    --dark: #0f1410;
+    --dark: #111413;
     --up: #15803d;
     --down: #dc2626;
     --radius: 18px;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0c0f0d;
-      --card: #151a16;
-      --ink: #eef2ec;
-      --muted: #8b948a;
-      --line: #232a24;
-      --accent: #b8f04f;
-      --accent-ink: #0d1a05;
-      --dark: #050706;
-      --up: #4ade80;
-      --down: #f87171;
+      --bg: #0f1110;
+      --card: #181b19;
+      --ink: #f2f4f3;
+      --muted: #8a918d;
+      --line: #2a2e2c;
+      --accent: #34d399;
+      --accent-ink: #04150c;
+      --dark: #0a0c0b;
+      --up: #34d399;
+      --down: #f48a8a;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0c0f0d;
-    --card: #151a16;
-    --ink: #eef2ec;
-    --muted: #8b948a;
-    --line: #232a24;
-    --accent: #b8f04f;
-    --accent-ink: #0d1a05;
-    --dark: #050706;
-    --up: #4ade80;
-    --down: #f87171;
+    --bg: #0f1110;
+    --card: #181b19;
+    --ink: #f2f4f3;
+    --muted: #8a918d;
+    --line: #2a2e2c;
+    --accent: #34d399;
+    --accent-ink: #04150c;
+    --dark: #0a0c0b;
+    --up: #34d399;
+    --down: #f48a8a;
   }
 
   * { box-sizing: border-box; }
@@ -67,9 +67,9 @@
   .nav { display: flex; flex-direction: column; gap: 6px; }
   .nav button {
     all: unset; cursor: pointer; display: block; padding: 11px 12px;
-    border-radius: 12px; color: #aeb7aa; font-size: 14px; width: 100%; box-sizing: border-box;
+    border-radius: 12px; color: #b4bfb0; font-size: 14px; width: 100%; box-sizing: border-box;
   }
-  .nav button:hover { color: #fff; background: #1c231d; }
+  .nav button:hover { color: #fff; background: #232725; }
   .nav button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
   /* layout */
@@ -80,15 +80,14 @@
   .sub, .hint { color: var(--muted); font-size: 13px; }
   .grid { display: grid; gap: 16px; }
   .stats { grid-template-columns: repeat(4, 1fr); }
-  .two { grid-template-columns: 1.4fr 1fr; margin-top: 16px; }
+  .two { grid-template-columns: 1.6fr 1fr; margin-top: 16px; }
   .horizons { grid-template-columns: repeat(3, 1fr); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
-  .card + .card { margin-top: 0; }
   .label { color: var(--muted); font-size: 13px; }
   .value { font-size: 26px; font-weight: 700; margin: 8px 0 6px; font-variant-numeric: tabular-nums; }
   .pill { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--bg); color: var(--muted); }
-  .pill.up { background: rgba(21, 128, 61, .12); }
-  .pill.down { background: rgba(220, 38, 38, .12); }
+  .pill.up { background: rgba(52, 211, 153, .16); }
+  .pill.down { background: rgba(244, 138, 138, .16); }
   .up { color: var(--up); }
   .down { color: var(--down); }
   .empty { color: var(--muted); font-size: 14px; padding: 16px 0; }
@@ -97,7 +96,7 @@
   /* controls */
   input, select {
     font: inherit; padding: 10px 12px; border: 1px solid var(--line);
-    border-radius: 12px; background: var(--card); color: var(--ink); min-width: 0;
+    border-radius: 12px; background: var(--bg); color: var(--ink); min-width: 0;
   }
   .btn {
     font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 10px 16px;
@@ -108,7 +107,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .chip {
     all: unset; cursor: pointer; padding: 8px 12px; border: 1px solid var(--line);
-    border-radius: 999px; font-size: 13px; background: var(--card);
+    border-radius: 999px; font-size: 13px; background: var(--bg);
   }
   .chip:hover { border-color: var(--accent); }
   .top-inline { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -122,6 +121,7 @@
   tr.click:hover td { background: var(--bg); }
 
   .chartbox { position: relative; height: 320px; }
+  .donut { position: relative; height: 300px; }
 
   /* phones and small tablets */
   @media (max-width: 900px) {
@@ -146,8 +146,7 @@
   <aside class="side">
     <div class="logo"><span class="dot"></span>Predictor</div>
     <nav class="nav">
-      <button data-view="overview" class="active">Overview</button>
-      <button data-view="holdings">My holdings</button>
+      <button data-view="holdings" class="active">Holdings</button>
       <button data-view="predict">Predictions</button>
       <button data-view="dividends">High dividend ETFs</button>
     </nav>
@@ -156,8 +155,8 @@
   <main>
     <div class="top">
       <div>
-        <h1 id="title">Overview</h1>
-        <div class="sub" id="subtitle">Your holdings and model forecasts</div>
+        <h1 id="title">Holdings</h1>
+        <div class="sub" id="subtitle">Your portfolio at a glance</div>
       </div>
       <form class="chips" id="lookupForm" autocomplete="off">
         <input id="tickerInput" placeholder="Ticker, e.g. AAPL" maxlength="12">
@@ -165,8 +164,8 @@
       </form>
     </div>
 
-    <!-- OVERVIEW -->
-    <section id="view-overview" class="view">
+    <!-- HOLDINGS (home) -->
+    <section id="view-holdings" class="view">
       <div class="grid stats">
         <div class="card">
           <div class="label">Portfolio value</div>
@@ -189,32 +188,26 @@
           <span class="pill" id="sPredPill">model horizon</span>
         </div>
       </div>
+
       <div class="grid two">
         <div class="card">
-          <h2>My holdings</h2>
-          <div class="hint">Click a row to see its predictions</div>
-          <div id="ovHoldings" style="margin-top:12px"></div>
+          <h2>All holdings</h2>
+          <div class="hint">Saved in this browser. Click a row to see its predictions.</div>
+          <form class="chips" id="addForm" autocomplete="off" style="margin:16px 0">
+            <input id="hTicker" placeholder="Ticker" maxlength="12" style="width:130px">
+            <input id="hShares" type="number" step="any" min="0" placeholder="Shares" style="width:130px">
+            <input id="hCost" type="number" step="any" min="0" placeholder="Cost basis, total $" style="width:190px">
+            <button class="btn lime" type="submit">Add holding</button>
+          </form>
+          <div id="fullHoldings"></div>
         </div>
-        <div class="card">
-          <h2>High dividend ETFs</h2>
-          <div class="hint">Your ETF list, at or above the cutoff</div>
-          <div id="ovDividends" style="margin-top:12px"></div>
-        </div>
-      </div>
-    </section>
 
-    <!-- HOLDINGS -->
-    <section id="view-holdings" class="view hidden">
-      <div class="card">
-        <h2>My holdings</h2>
-        <div class="hint">Saved in this browser. Prices refresh when you open the page.</div>
-        <form class="chips" id="addForm" autocomplete="off" style="margin:16px 0">
-          <input id="hTicker" placeholder="Ticker" maxlength="12" style="width:140px">
-          <input id="hShares" type="number" step="any" min="0" placeholder="Shares" style="width:130px">
-          <input id="hCost" type="number" step="any" min="0" placeholder="Avg cost per share" style="width:190px">
-          <button class="btn lime" type="submit">Add holding</button>
-        </form>
-        <div id="fullHoldings"></div>
+        <div class="card">
+          <h2>Allocation</h2>
+          <div class="hint">Share of your portfolio by market value</div>
+          <div class="donut" style="margin-top:12px"><canvas id="allocChart"></canvas></div>
+          <div class="empty" id="allocEmpty">Add holdings to see your allocation.</div>
+        </div>
       </div>
     </section>
 
@@ -238,7 +231,7 @@
 
       <div class="grid horizons" id="horizons" style="margin-top:16px"></div>
 
-      <div class="grid two">
+      <div class="grid two" style="grid-template-columns:1fr 1fr">
         <div class="card">
           <h2>Model</h2>
           <div class="hint">Random Forest, trained on past prices with a chronological test split</div>
@@ -249,7 +242,7 @@
           <div class="hint" style="margin-bottom:12px">Save this ticker to your portfolio</div>
           <div class="chips">
             <input id="pShares" type="number" step="any" min="0" placeholder="Shares" style="width:120px">
-            <input id="pCost" type="number" step="any" min="0" placeholder="Avg cost" style="width:120px">
+            <input id="pCost" type="number" step="any" min="0" placeholder="Cost basis $" style="width:140px">
             <button class="btn" id="pAdd" type="button">Add</button>
           </div>
           <div class="hint" style="margin:18px 0 10px">Quick picks</div>
@@ -285,26 +278,31 @@
   const $ = id => document.getElementById(id);
   const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const money = n => (n == null || isNaN(n)) ? '—' : '$' + fmt(n);
+  const signedMoney = n => (n == null || isNaN(n)) ? '—' : (n < 0 ? '-' : n > 0 ? '+' : '') + '$' + fmt(Math.abs(n));
   const pct = n => (n == null || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n) + '%';
   const cls = n => (n > 0 ? 'up' : n < 0 ? 'down' : '');
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const clean = t => (t || '').toUpperCase().trim().replace(/[^A-Z0-9.\-^=]/g, '');
 
   const POPULAR = [
-    ['AAPL', 'Apple'], ['MSFT', 'Microsoft'], ['GOOGL', 'Alphabet'], ['NVDA', 'Nvidia'],
-    ['TSLA', 'Tesla'], ['SPY', 'S&P 500 ETF'], ['QQQ', 'Nasdaq 100 ETF'], ['QQQI', 'QQQI'],
-    ['SCHD', 'SCHD'], ['JEPQ', 'JEPQ'],
+    ['AAPL', 'Apple'], ['MSFT', 'Microsoft'], ['GOOGL', 'Alphabet'], ['AMZN', 'Amazon'],
+    ['NVDA', 'Nvidia'], ['TSLA', 'Tesla'], ['SPY', 'S&P 500 ETF'], ['QQQ', 'Nasdaq 100 ETF'],
+    ['QQQI', 'QQQI'], ['SCHD', 'SCHD'], ['JEPQ', 'JEPQ'],
   ];
+  const PALETTE = ['#34d399', '#10b981', '#059669', '#047857', '#065f46', '#6ee7b7', '#a7f3d0', '#5eead4'];
 
   // state
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-  let holdings = load('holdings', []);      // [{ticker, shares, cost}]
+  // holdings are {ticker, shares, costBasis} where costBasis is the total you paid.
+  // Entries saved before that change stored a per-share cost, so convert them.
+  let holdings = load('holdings', []).map(h => ({ ...h, costBasis: h.costBasis ?? (h.shares * (h.cost || 0)) }));
+  let etfWatch = load('etfWatch', []);
   let selected = load('selected', 'AAPL');
-  const cache = {};                          // ticker -> {at, data}
-  const priced = {};                         // ticker -> predict/all result or {error}
+  const cache = {};   // ticker -> {at, data}
+  const priced = {};  // ticker -> predict/all result or {error}
   let chart = null;
-  let divTimer = null;
+  let allocChart = null;
 
   async function api(path) {
     const r = await fetch(path);
@@ -323,8 +321,7 @@
 
   // views
   const TITLES = {
-    overview: ['Overview', 'Your holdings and model forecasts'],
-    holdings: ['My holdings', 'Saved in this browser'],
+    holdings: ['Holdings', 'Your portfolio at a glance'],
     predict: ['Predictions', 'Model forecasts for any ticker'],
     dividends: ['High dividend ETFs', 'Your list, checked live'],
   };
@@ -335,31 +332,11 @@
     $('subtitle').textContent = TITLES[name][1];
   }
 
-  // holdings and portfolio
-  function holdingsTable(rows, full) {
-    if (!rows.length) return '<div class="empty">No holdings yet. Add one below or from Predictions.</div>';
-    const head = `<tr><th>Ticker</th><th class="num">Shares</th><th class="num">Price</th><th class="num">Value</th><th class="num">P/L</th>${full ? '<th class="num">Forecast</th><th></th>' : ''}</tr>`;
-    const body = rows.map(({ h, d, v }) => {
-      if (!v) {
-        const msg = d && d.error ? esc(d.error) : 'loading...';
-        return `<tr class="click" data-open="${esc(h.ticker)}"><td><b>${esc(h.ticker)}</b></td><td class="num">${fmt(h.shares, 4)}</td><td colspan="${full ? 5 : 3}" class="num hint">${msg}</td>${full ? `<td><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>` : ''}</tr>`;
-      }
-      return `<tr class="click" data-open="${esc(h.ticker)}">
-        <td><b>${esc(h.ticker)}</b></td>
-        <td class="num">${fmt(h.shares, 4)}</td>
-        <td class="num">${money(v.price)}</td>
-        <td class="num">${money(v.value)}</td>
-        <td class="num ${cls(v.pl)}">${money(v.pl)}<br><span class="hint">${pct(v.plPct)}</span></td>
-        ${full ? `<td class="num ${cls(v.forecastPct)}">${money(v.forecast)}<br><span class="hint">${pct(v.forecastPct)}</span></td><td><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>` : ''}
-      </tr>`;
-    }).join('');
-    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  }
-
+  // holdings
   function valueRow(h, d) {
     const price = d.current_price;
     const value = h.shares * price;
-    const cost = h.shares * h.cost;
+    const cost = h.costBasis;
     const model = d.predictions[d.predictions.length - 1];
     const forecast = h.shares * model.predicted_price;
     return {
@@ -369,6 +346,29 @@
       forecast,
       forecastPct: value ? (forecast - value) / value * 100 : null,
     };
+  }
+
+  function holdingsTable(rows) {
+    if (!rows.length) return '<div class="empty">No holdings yet. Add one above or from Predictions.</div>';
+    const head = '<tr><th>Ticker</th><th class="num">Shares</th><th class="num">Cost basis</th><th class="num">Price</th><th class="num">Value</th><th class="num">P/L</th><th class="num">Forecast</th><th></th></tr>';
+    const body = rows.map(({ h, d, v }) => {
+      const remove = `<td class="num"><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>`;
+      if (!v) {
+        const msg = d && d.error ? esc(d.error) : 'loading...';
+        return `<tr class="click" data-open="${esc(h.ticker)}"><td><b>${esc(h.ticker)}</b></td><td class="num">${fmt(h.shares, 4)}</td><td class="num">${money(h.costBasis)}</td><td colspan="4" class="hint">${msg}</td>${remove}</tr>`;
+      }
+      return `<tr class="click" data-open="${esc(h.ticker)}">
+        <td><b>${esc(h.ticker)}</b></td>
+        <td class="num">${fmt(h.shares, 4)}</td>
+        <td class="num">${money(h.costBasis)}</td>
+        <td class="num">${money(v.price)}</td>
+        <td class="num">${money(v.value)}</td>
+        <td class="num ${cls(v.pl)}">${signedMoney(v.pl)}<br><span class="hint">${pct(v.plPct)}</span></td>
+        <td class="num ${cls(v.forecastPct)}">${money(v.forecast)}<br><span class="hint">${pct(v.forecastPct)}</span></td>
+        ${remove}
+      </tr>`;
+    }).join('');
+    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
   function renderPortfolio() {
@@ -385,17 +385,55 @@
     $('sValue').textContent = done.length ? money(value) : '—';
     $('sValuePill').textContent = holdings.length ? `${done.length} of ${holdings.length} priced` : 'no holdings yet';
     $('sCost').textContent = done.length ? money(cost) : '—';
-    $('sPL').textContent = done.length ? money(pl) : '—';
+    $('sPL').textContent = done.length ? signedMoney(pl) : '—';
     $('sPL').className = 'value ' + cls(pl);
     $('sPLPill').textContent = cost ? pct(pl / cost * 100) : '—';
     $('sPLPill').className = 'pill ' + cls(pl);
-    $('sPred').textContent = done.length ? money(forecast) : '—';
     const fp = value ? (forecast - value) / value * 100 : null;
+    $('sPred').textContent = done.length ? money(forecast) : '—';
     $('sPredPill').textContent = fp == null ? 'model horizon' : pct(fp) + ' vs now';
     $('sPredPill').className = 'pill ' + cls(fp);
 
-    $('ovHoldings').innerHTML = holdingsTable(rows, false);
-    $('fullHoldings').innerHTML = holdingsTable(rows, true);
+    $('fullHoldings').innerHTML = holdingsTable(rows);
+    renderAllocation(done);
+  }
+
+  function renderAllocation(done) {
+    const hasData = done.some(r => r.v.value > 0);
+    $('allocEmpty').classList.toggle('hidden', hasData);
+    $('allocChart').style.display = hasData ? '' : 'none';
+    if (allocChart) { allocChart.destroy(); allocChart = null; }
+    if (!hasData) return;
+
+    const muted = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+    allocChart = new Chart($('allocChart'), {
+      type: 'doughnut',
+      data: {
+        labels: done.map(r => r.h.ticker),
+        datasets: [{
+          data: done.map(r => r.v.value),
+          backgroundColor: done.map((_, i) => PALETTE[i % PALETTE.length]),
+          borderWidth: 0,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '62%',
+        animation: { animateRotate: true, animateScale: false, duration: 1100 },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: muted, boxWidth: 12 } },
+          tooltip: {
+            callbacks: {
+              label: c => {
+                const total = c.dataset.data.reduce((a, b) => a + b, 0);
+                return `${c.label}: ${money(c.parsed)} (${fmt(c.parsed / total * 100, 1)}%)`;
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   async function refreshOne(t) {
@@ -411,11 +449,12 @@
     }
   }
 
-  function addHolding(t, shares, cost) {
+  function addHolding(t, shares, costBasis) {
     t = clean(t);
     shares = Number(shares);
-    if (!t || !(shares > 0)) return false;
-    holdings = holdings.filter(h => h.ticker !== t).concat({ ticker: t, shares, cost: Number(cost) || 0 });
+    costBasis = Number(costBasis);
+    if (!t || !(shares > 0) || !(costBasis > 0)) return false;
+    holdings = holdings.filter(h => h.ticker !== t).concat({ ticker: t, shares, costBasis });
     save('holdings', holdings);
     refreshOne(t);
     return true;
@@ -428,7 +467,7 @@
     renderPortfolio();
   }
 
-  // predictions view
+  // predictions
   async function openPredict(t) {
     t = clean(t);
     if (!t) return;
@@ -438,7 +477,6 @@
     $('pTicker').textContent = t;
     $('pName').textContent = 'Loading...';
     $('horizons').innerHTML = '';
-    $('pCost').value = '';
     try {
       const [d, hist] = await Promise.all([
         predict(t),
@@ -452,7 +490,6 @@
 
   function renderPredict(d, hist) {
     $('pName').textContent = `Current price ${money(d.current_price)}`;
-    $('pCost').placeholder = fmt(d.current_price);
 
     $('horizons').innerHTML = d.predictions.map(p => `
       <div class="card">
@@ -470,8 +507,8 @@
         datasets: [{
           label: 'Close',
           data: hist.prices,
-          borderColor: '#5fa30c',
-          backgroundColor: 'rgba(184, 240, 79, 0.18)',
+          borderColor: '#34d399',
+          backgroundColor: 'rgba(52, 211, 153, 0.16)',
           fill: true,
           pointRadius: 0,
           tension: 0.25,
@@ -500,33 +537,28 @@
       </div>`;
   }
 
-  // dividends
-  function dividendTable(rows, small, min) {
-    if (!rows.length) return `<div class="empty">${small ? 'Nothing above the cutoff yet.' : 'Add an ETF above to check its yield.'}</div>`;
-    const head = `<tr><th>Ticker</th>${small ? '' : '<th>Name</th>'}<th class="num">Yield</th>${small ? '' : '<th></th>'}</tr>`;
+  // high dividend ETFs: a list you build by hand, checked live
+  function dividendTable(rows, min) {
+    if (!rows.length) return '<div class="empty">Add an ETF above to check its yield.</div>';
+    const head = '<tr><th>Ticker</th><th>Name</th><th class="num">Yield</th><th></th></tr>';
     const body = rows.map(r => {
       const y = r.dividend_yield_pct;
       const yieldCell = y == null ? '<span class="hint">no data</span>' : `<span class="${y >= min ? 'up' : 'hint'}">${fmt(y)}%</span>`;
-      return `
-      <tr class="click" data-open="${esc(r.ticker)}">
+      return `<tr class="click" data-open="${esc(r.ticker)}">
         <td><b>${esc(r.ticker)}</b></td>
-        ${small ? '' : `<td>${esc(r.name)}</td>`}
+        <td>${esc(r.name)}</td>
         <td class="num">${yieldCell}</td>
-        ${small ? '' : `<td class="num"><button class="btn ghost" data-unwatch="${esc(r.ticker)}">Remove</button></td>`}
+        <td class="num"><button class="btn ghost" data-unwatch="${esc(r.ticker)}">Remove</button></td>
       </tr>`;
     }).join('');
     return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
-  // your ETF list: tickers you add by hand, checked for live yield
-  let etfWatch = load('etfWatch', []);
-
   async function loadDividends() {
     const min = Number($('minYield').value) || 10;
     if (!etfWatch.length) {
       $('divStatus').textContent = 'Add an ETF below to check its live yield.';
-      $('divTable').innerHTML = dividendTable([], false, min);
-      $('ovDividends').innerHTML = dividendTable([], true, min);
+      $('divTable').innerHTML = dividendTable([], min);
       return;
     }
     $('divStatus').textContent = `Checking ${etfWatch.length} ETF${etfWatch.length === 1 ? '' : 's'}...`;
@@ -536,8 +568,7 @@
       const rows = etfWatch.map(t => byTicker[t] || { ticker: t, name: 'no yield data from Yahoo', dividend_yield_pct: null });
       rows.sort((a, b) => (b.dividend_yield_pct ?? -1) - (a.dividend_yield_pct ?? -1));
       $('divStatus').textContent = `${d.etfs.length} of ${etfWatch.length} at ${min}% or more.`;
-      $('divTable').innerHTML = dividendTable(rows, false, min);
-      $('ovDividends').innerHTML = dividendTable(d.etfs.slice(0, 6), true, min);
+      $('divTable').innerHTML = dividendTable(rows, min);
     } catch (e) {
       $('divStatus').textContent = 'Could not load: ' + e.message;
     }
@@ -562,7 +593,7 @@
     const v = b.dataset.view;
     if (v === 'predict') openPredict(selected);
     else if (v === 'holdings') { showView(v); renderPortfolio(); }
-    else showView(v);
+    else if (v === 'dividends') { showView(v); loadDividends(); }
   }));
 
   document.addEventListener('click', e => {
@@ -588,7 +619,13 @@
   });
 
   $('pAdd').addEventListener('click', () => {
-    addHolding(selected, $('pShares').value, $('pCost').value || (priced[selected] && priced[selected].current_price));
+    // if no cost basis is typed, assume you bought at today's price
+    const sh = Number($('pShares').value);
+    const p = priced[selected];
+    const basis = $('pCost').value || (p && !p.error ? p.current_price * sh : 0);
+    if (addHolding(selected, sh, basis)) {
+      $('pShares').value = ''; $('pCost').value = '';
+    }
   });
 
   $('period').addEventListener('change', () => openPredict(selected));
@@ -602,9 +639,8 @@
 
   $('quick').innerHTML = POPULAR.map(([t, n]) => `<button class="chip" data-open="${t}">${t} · ${esc(n)}</button>`).join('');
 
-  // start
+  // start on holdings
   renderPortfolio();
-  loadDividends();
   refreshAllHoldings();
 </script>
 </body>
