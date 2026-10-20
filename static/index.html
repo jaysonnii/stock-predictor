@@ -83,6 +83,9 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), var(--shadow);
   }
 
+  /* projection */
+  .proj-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+
   /* hero */
   .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; align-items: end; }
   .hero-value {
@@ -202,6 +205,12 @@
             <span class="pill" id="sPredPill">model horizon</span>
           </div>
         </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>Projected value</h2>
+        <div class="hint">Model estimates from past prices, not a guarantee. Based on priced holdings.</div>
+        <div class="proj-grid" id="projGrid" style="margin-top:16px"></div>
       </div>
 
       <div class="grid two">
@@ -420,6 +429,25 @@
 
     $('fullHoldings').innerHTML = holdingsTable(rows);
     renderAllocation(done);
+    renderProjection(done, value);
+  }
+
+  function renderProjection(done, value) {
+    const el = $('projGrid');
+    if (!done.length) {
+      el.innerHTML = '<div class="empty">Projections appear once your holdings load.</div>';
+      return;
+    }
+    el.innerHTML = [0, 1, 2].map(i => {
+      const label = done[0].d.predictions[i];
+      const proj = done.reduce((sum, r) => sum + r.h.shares * r.d.predictions[i].predicted_price, 0);
+      const chg = value ? (proj - value) / value * 100 : null;
+      return `<div>
+        <div class="label">${esc(label.horizon)}, ${label.days} trading days</div>
+        <div class="value">${money(proj)}</div>
+        <span class="pill ${cls(chg)}">${pct(chg)} vs now</span>
+      </div>`;
+    }).join('');
   }
 
   function renderAllocation(done) {
