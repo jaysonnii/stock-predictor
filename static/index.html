@@ -183,7 +183,7 @@
     <div class="logo"><span class="dot"></span>Predictor</div>
     <nav class="nav">
       <button data-view="holdings" class="active">Holdings</button>
-      <button data-view="predict">Predictions</button>
+      <button data-view="predict">Ranges</button>
       <button data-view="dividends">High dividend ETFs</button>
     </nav>
   </aside>
@@ -196,7 +196,7 @@
       </div>
       <form class="chips" id="lookupForm" autocomplete="off">
         <input id="tickerInput" placeholder="Ticker, e.g. AAPL" maxlength="12">
-        <button class="btn lime" type="submit">Predict</button>
+        <button class="btn lime" type="submit">Look up</button>
       </form>
     </div>
 
@@ -219,23 +219,23 @@
             <div class="value" id="sCost">—</div>
           </div>
           <div>
-            <div class="label">Model forecast</div>
+            <div class="label">1 year median</div>
             <div class="value" id="sPred">—</div>
-            <span class="pill" id="sPredPill">model horizon</span>
+            <span class="pill" id="sPredPill">from the ranges</span>
           </div>
         </div>
       </div>
 
       <div class="card" style="margin-top:20px">
-        <h2>Projected value</h2>
-        <div class="hint">Model estimates from past prices, not a guarantee. Based on priced holdings.</div>
+        <h2>Projected value, median</h2>
+        <div class="hint">Sum of each holding's median from its calibrated range. The middle outcome, not a target: half of outcomes land below it. A range for the whole portfolio needs a simulation of how holdings move together, which comes next.</div>
         <div class="proj-grid" id="projGrid" style="margin-top:16px"></div>
       </div>
 
       <div class="grid two">
         <div class="card">
           <h2>All holdings</h2>
-          <div class="hint">Saved in this browser. Click a row to see its predictions.</div>
+          <div class="hint">Saved in this browser. Click a row to see its ranges.</div>
           <form class="chips" id="addForm" autocomplete="off" style="margin:16px 0">
             <input id="hTicker" placeholder="Ticker" maxlength="12" style="width:130px">
             <input id="hShares" type="number" step="any" min="0" placeholder="Shares" style="width:130px">
@@ -289,13 +289,14 @@
         <div id="rangesBody" class="empty">Pick a ticker to see its ranges.</div>
       </div>
 
-      <div class="grid horizons" id="horizons" style="margin-top:16px"></div>
-
       <div class="grid two" style="grid-template-columns:1fr 1fr">
         <div class="card">
-          <h2>Model</h2>
-          <div class="hint">Random Forest, trained on past prices with a chronological test split</div>
-          <div id="modelInfo" class="empty" style="padding-top:12px">Pick a ticker to see the model.</div>
+          <h2>How the ranges are built</h2>
+          <div style="display:grid;gap:8px;padding-top:12px;font-size:14px">
+            <div>Past daily returns are rescaled to today's volatility and resampled in one month blocks, thousands of times.</div>
+            <div>Each range was checked walk forward on 93 stocks and ETFs: forecasts made with only the data available at the time, scored against what actually happened.</div>
+            <div class="hint">There is no price target here. A point forecast model was tested and did not beat a simple average, so it is not shown. Past prices only, no dividends, not financial advice.</div>
+          </div>
         </div>
         <div class="card">
           <h2>Add to holdings</h2>
@@ -383,7 +384,7 @@
   async function predict(t) {
     const hit = cache[t];
     if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
-    const data = await api(`/predict/all?ticker=${encodeURIComponent(t)}`);
+    const data = await api(`/ranges?ticker=${encodeURIComponent(t)}`);
     cache[t] = { at: Date.now(), data };
     return data;
   }
@@ -391,7 +392,7 @@
   // views
   const TITLES = {
     holdings: ['Holdings', 'Your portfolio at a glance'],
-    predict: ['Predictions', 'Model forecasts for any ticker'],
+    predict: ['Ranges', 'Calibrated price ranges for any ticker'],
     dividends: ['High dividend ETFs', 'Your list, checked live'],
   };
   function showView(name) {
@@ -406,9 +407,12 @@
     const price = d.current_price;
     const value = h.shares * price;
     const cost = h.costBasis;
-    const model = d.predictions[d.predictions.length - 1];
-    const forecast = h.shares * model.predicted_price;
+    const year = d.horizons[d.horizons.length - 1];
+    const r80 = year.ranges.find(x => x.level === 80);
+    const forecast = h.shares * year.median_price;
     return {
+      low80: h.shares * r80.low_price,
+      high80: h.shares * r80.high_price,
       price, value, cost,
       pl: value - cost,
       plPct: cost ? (value - cost) / cost * 100 : null,
@@ -418,10 +422,10 @@
   }
 
   function holdingsTable(rows) {
-    if (!rows.length) return '<div class="empty">No holdings yet. Add one above or from Predictions.</div>';
-    const head = '<tr><th>Ticker</th><th class="num">Shares</th><th class="num">Cost basis</th><th class="num">Price</th><th class="num">Value</th><th class="num">P/L</th><th class="num">Forecast</th><th></th></tr>';
+    if (!rows.length) return '<div class="empty">No holdings yet. Add one above or from Ranges.</div>';
+    const head = '<tr><th>Ticker</th><th class="num">Shares</th><th class="num">Cost basis</th><th class="num">Price</th><th class="num">Value</th><th class="num">P/L</th><th class="num">1 yr median<br>and 80% range</th><th></th></tr>';
     const body = rows.map(({ h, d, v }) => {
-      const remove = `<td class="num"><button class="btn ghost" data-remove="${esc(h.ticker)}">Remove</button></td>`;
+      const remove = `<td class="num" style="padding-left:4px;padding-right:0"><button class="btn ghost" style="padding:5px 9px" data-remove="${esc(h.ticker)}" aria-label="Remove ${esc(h.ticker)}" title="Remove">✕</button></td>`;
       if (!v) {
         const msg = d && d.error ? esc(d.error) : 'loading...';
         return `<tr class="click" data-open="${esc(h.ticker)}"><td><b>${esc(h.ticker)}</b></td><td class="num">${fmt(h.shares, 4)}</td><td class="num">${money(h.costBasis)}</td><td colspan="4" class="hint">${msg}</td>${remove}</tr>`;
@@ -433,11 +437,11 @@
         <td class="num">${money(v.price)}</td>
         <td class="num">${money(v.value)}</td>
         <td class="num ${cls(v.pl)}">${signedMoney(v.pl)}<br><span class="hint">${pct(v.plPct)}</span></td>
-        <td class="num ${cls(v.forecastPct)}">${money(v.forecast)}<br><span class="hint">${pct(v.forecastPct)}</span></td>
+        <td class="num">${money(v.forecast)}<br><span class="hint">$${fmt(v.low80, 0)} to $${fmt(v.high80, 0)}</span></td>
         ${remove}
       </tr>`;
     }).join('');
-    return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    return `<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
   }
 
   function renderPortfolio() {
@@ -460,7 +464,7 @@
     $('sPLPill').className = 'pill ' + cls(pl);
     const fp = value ? (forecast - value) / value * 100 : null;
     $('sPred').textContent = done.length ? money(forecast) : '—';
-    $('sPredPill').textContent = fp == null ? 'model horizon' : pct(fp) + ' vs now';
+    $('sPredPill').textContent = fp == null ? 'from the ranges' : pct(fp) + ' vs now';
     $('sPredPill').className = 'pill ' + cls(fp);
 
     $('fullHoldings').innerHTML = holdingsTable(rows);
@@ -475,8 +479,8 @@
       return;
     }
     el.innerHTML = [0, 1, 2].map(i => {
-      const label = done[0].d.predictions[i];
-      const proj = done.reduce((sum, r) => sum + r.h.shares * r.d.predictions[i].predicted_price, 0);
+      const label = done[0].d.horizons[i];
+      const proj = done.reduce((sum, r) => sum + r.h.shares * r.d.horizons[i].median_price, 0);
       const chg = value ? (proj - value) / value * 100 : null;
       return `<div>
         <div class="label">${esc(label.horizon)}, ${label.days} trading days</div>
@@ -564,16 +568,12 @@
     showView('predict');
     $('pTicker').textContent = t;
     $('pName').textContent = 'Loading...';
-    $('horizons').innerHTML = '';
     loadRanges(t);
     try {
-      const [d, hist] = await Promise.all([
-        predict(t),
-        api(`/history?ticker=${encodeURIComponent(t)}&period=${$('period').value}`),
-      ]);
-      renderPredict(d, hist);
+      const hist = await api(`/history?ticker=${encodeURIComponent(t)}&period=${$('period').value}`);
+      if (selected === t) renderChart(hist);
     } catch (e) {
-      $('pName').textContent = e.message;
+      if (selected === t) $('pName').textContent = e.message;
     }
   }
 
@@ -582,10 +582,16 @@
     $('rangesBody').className = 'empty';
     $('rangesBody').textContent = 'Building ranges...';
     try {
-      const r = await api(`/ranges?ticker=${encodeURIComponent(t)}`);
-      if (selected === t) renderRanges(r);
+      const r = await predict(t);
+      if (selected === t) {
+        $('pName').textContent = `Current price ${money(r.current_price)}`;
+        renderRanges(r);
+      }
     } catch (e) {
-      if (selected === t) $('rangesBody').textContent = e.message;
+      if (selected === t) {
+        $('rangesBody').textContent = e.message;
+        $('pName').textContent = '';
+      }
     }
   }
 
@@ -631,17 +637,7 @@
     }).join('') + `<div class="hint" style="margin-top:14px">Tested walk forward on 93 large US stocks and ETFs that still trade today, so real misses are likely somewhat worse. Not financial advice.</div>`;
   }
 
-  function renderPredict(d, hist) {
-    $('pName').textContent = `Current price ${money(d.current_price)}`;
-
-    $('horizons').innerHTML = d.predictions.map(p => `
-      <div class="card">
-        <div class="label">${esc(p.horizon)}</div>
-        <div class="value">${money(p.predicted_price)}</div>
-        <span class="pill ${cls(p.expected_return_pct)}">${pct(p.expected_return_pct)}</span>
-        <div class="hint" style="margin-top:10px">${p.days} trading days</div>
-      </div>`).join('');
-
+  function renderChart(hist) {
     if (chart) chart.destroy();
     chart = new Chart($('chart'), {
       type: 'line',
@@ -667,17 +663,6 @@
         },
       },
     });
-
-    $('modelInfo').className = '';
-    $('modelInfo').style.paddingTop = '12px';
-    $('modelInfo').innerHTML = `
-      <div style="display:grid;gap:8px">
-        <div>Model horizon: <b>${d.model_horizon_days} trading days</b></div>
-        <div>${d.fallback_used
-          ? `Not enough history for a full year, so the model ran on a ${d.model_horizon_days} day horizon.`
-          : 'Ran at the full 1 year horizon.'}</div>
-        <div class="hint">Forecasts use past prices only. They do not include dividends and are not financial advice.</div>
-      </div>`;
   }
 
   // high dividend ETFs: a list you build by hand, checked live
