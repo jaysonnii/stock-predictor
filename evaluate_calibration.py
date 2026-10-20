@@ -5,9 +5,11 @@ Usage (run from the project folder):
     python evaluate_calibration.py              # 63, 126 and 252 day horizons
     python evaluate_calibration.py 252          # one horizon
     python evaluate_calibration.py 63 252       # several
+    python evaluate_calibration.py --vol        # volatility-scaled method
 
 Uses the same price cache as pooled.py (data_cache/). Per-forecast results
-are saved to reports/calibration_<H>d.csv.
+are saved to reports/calibration_<H>d.csv (plain bootstrap) or
+reports/calibration_vol_<H>d.csv (volatility-scaled).
 
 How to read it: in a calibrated forecast the "Inside" column matches the
 range (50, 80, 90) and misses split evenly between "Below" and "Above".
@@ -26,7 +28,12 @@ REPORTS_DIR = "reports"
 DEFAULT_HORIZONS = (63, 126, 252)
 
 
-def run_horizon(horizon: int) -> pd.DataFrame:
+def results_path(horizon: int, method: str = "bootstrap") -> str:
+    name = f"calibration_{horizon}d.csv" if method == "bootstrap" else f"calibration_{method}_{horizon}d.csv"
+    return os.path.join(REPORTS_DIR, name)
+
+
+def run_horizon(horizon: int, method: str = "bootstrap") -> pd.DataFrame:
     frames = []
     for i, ticker in enumerate(TICKERS):
         try:
@@ -34,7 +41,7 @@ def run_horizon(horizon: int) -> pd.DataFrame:
         except Exception as e:
             print(f"Skipping {ticker}: {e}")
             continue
-        res = calibrate_ticker(raw["Close"], horizon=horizon, seed=1000 + i)
+        res = calibrate_ticker(raw["Close"], horizon=horizon, seed=1000 + i, method=method)
         if res.empty:
             print(f"Skipping {ticker}: not enough history")
             continue
@@ -65,9 +72,10 @@ def _print_table(title: str, groups: dict):
         print(line)
 
 
-def report(results: pd.DataFrame, horizon: int):
+def report(results: pd.DataFrame, horizon: int, method: str = "bootstrap"):
+    label = "Bootstrap" if method == "bootstrap" else "Volatility-scaled bootstrap"
     print("\n" + "=" * 78)
-    print(f"Bootstrap range calibration, {horizon}-day horizon")
+    print(f"{label} range calibration, {horizon}-day horizon")
     print(f"{results['Ticker'].nunique()} tickers, {len(results)} forecasts")
     print("Targets: In 50% = 50, In 80% = 80, In 90% = 90. Below and Above should match.")
 
@@ -90,13 +98,15 @@ def report(results: pd.DataFrame, horizon: int):
 
 
 def main():
-    horizons = [int(a) for a in sys.argv[1:]] or list(DEFAULT_HORIZONS)
+    args = sys.argv[1:]
+    method = "vol" if "--vol" in args else "bootstrap"
+    horizons = [int(a) for a in args if not a.startswith("--")] or list(DEFAULT_HORIZONS)
     os.makedirs(REPORTS_DIR, exist_ok=True)
     for horizon in horizons:
-        results = run_horizon(horizon)
-        path = os.path.join(REPORTS_DIR, f"calibration_{horizon}d.csv")
+        results = run_horizon(horizon, method)
+        path = results_path(horizon, method)
         results.to_csv(path, index=False)
-        report(results, horizon)
+        report(results, horizon, method)
         print(f"\nSaved per-forecast results to {path}")
 
 

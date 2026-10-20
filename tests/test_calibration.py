@@ -78,3 +78,61 @@ def test_time_zone_aware_prices_give_plain_dates():
     close.index = close.index.tz_localize("America/New_York")
     res = calibrate_ticker(close, horizon=21, step_days=100, min_history_days=300, n_sims=100)
     assert res["Date"].dt.tz is None
+
+
+# --- Volatility-scaled method ---
+
+from calibration import ewma_volatility  # noqa: E402
+
+
+def test_ewma_volatility_is_causal():
+    r = np.random.default_rng(5).normal(0, 0.01, size=300)
+    before_a, _ = ewma_volatility(r)
+    r2 = r.copy()
+    r2[200] = 0.5  # huge shock on day 200
+    before_b, after_b = ewma_volatility(r2)
+    # The vol "known before day 200" cannot see day 200's shock.
+    assert np.allclose(before_a[: 201], before_b[: 201])
+    assert after_b[200] > 5 * before_b[200]
+
+
+def test_vol_ranges_widen_after_a_volatility_jump():
+    rng = np.random.default_rng(6)
+    calm = rng.normal(0.0003, 0.005, size=1000)
+    wild = rng.normal(0.0003, 0.03, size=300)
+    dates = pd.bdate_range("2015-01-01", periods=1300)
+    close = pd.Series(100 * np.exp(np.cumsum(np.concatenate([calm, wild]))), index=dates)
+
+    kwargs = dict(horizon=21, step_days=1000, min_history_days=1060, n_sims=2000, seed=1)
+    plain = calibrate_ticker(close, method="bootstrap", **kwargs).iloc[0]
+    vol = calibrate_ticker(close, method="vol", **kwargs).iloc[0]
+    # 60 days into the wild regime, the plain bootstrap is still mostly calm history.
+    assert vol["Q90"] - vol["Q10"] > 2 * (plain["Q90"] - plain["Q10"])
+
+
+def test_vol_method_uses_no_future_data():
+    close = make_prices(days=900, seed=8)
+    changed = close.copy()
+    changed.iloc[600:] *= np.exp(np.random.default_rng(9).normal(0, 0.1, size=300).cumsum())
+
+    kwargs = dict(horizon=21, step_days=1000, min_history_days=400, n_sims=500, seed=7, method="vol")
+    a = calibrate_ticker(close, **kwargs).iloc[0]
+    b = calibrate_ticker(changed, **kwargs).iloc[0]
+    quantile_cols = [c for c in a.index if c.startswith("Q")]
+    assert np.allclose(a[quantile_cols].astype(float), b[quantile_cols].astype(float))
+
+
+def test_vol_method_is_roughly_calibrated_on_constant_volatility():
+    frames = []
+    for seed in range(15):
+        close = make_prices(days=2500, seed=200 + seed)
+        frames.append(calibrate_ticker(close, horizon=63, step_days=63, n_sims=1000,
+                                       seed=seed, method="vol"))
+    s = summarize(pd.concat(frames, ignore_index=True))
+    assert 72 <= s["in_80_pct"] <= 88
+
+
+def test_unknown_method_is_rejected():
+    import pytest
+    with pytest.raises(ValueError):
+        calibrate_ticker(make_prices(days=800), method="magic")
