@@ -24,6 +24,8 @@ at date t only sees data up to t.
 import numpy as np
 import pandas as pd
 
+from data import _naive_dates
+
 QUANTILES = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
 INTERVALS = {50: (0.25, 0.75), 80: (0.10, 0.90), 90: (0.05, 0.95)}
 
@@ -35,6 +37,9 @@ SEED = 42
 
 
 def _log_returns(close: pd.Series) -> pd.Series:
+    close = close.copy()
+    # Plain calendar dates: fresh Yahoo downloads carry daylight-saving offsets.
+    close.index = _naive_dates(close.index)
     close = close[~close.index.duplicated()].sort_index()
     close = close[close > 0]
     return np.log(close).diff().dropna()
