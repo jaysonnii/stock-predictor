@@ -80,3 +80,9 @@ def test_dates_with_daylight_saving_offsets_parse(tmp_path):
     assert dates.dt.tz is None
     assert dates.iloc[0] == pd.Timestamp("2015-01-01")
     assert not walk_forward(loaded, horizon=63).empty
+
+
+def test_too_wide_forecasts_get_narrowed():
+    # k below 1: the vol-scaled ranges overshoot, so the fit must be able to shrink.
+    res = make_results(true_sd_low=0.088, true_sd_high=0.088)
+    assert abs(fit_symmetric(res) - 0.88) <= 0.05

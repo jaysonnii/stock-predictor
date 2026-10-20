@@ -19,6 +19,9 @@ scored with that k. No outcome is used to fit the factor that scores it.
 Usage (run from the project folder, after evaluate_calibration.py):
     python widening.py              # 63, 126 and 252 day horizons
     python widening.py 252          # one horizon
+    python widening.py --vol        # on the volatility-scaled results
+
+k below 1 narrows the ranges. The grid runs from 0.80 to 2.50.
 """
 import os
 import sys
@@ -152,10 +155,12 @@ def pooled_test_scores(results: pd.DataFrame, by_year: pd.DataFrame, horizon: in
             for name, frames in parts.items() if frames}
 
 
-def report(results: pd.DataFrame, horizon: int):
+def report(results: pd.DataFrame, horizon: int, method: str = "bootstrap"):
     by_year = walk_forward(results, horizon)
+    label = "plain bootstrap" if method == "bootstrap" else "vol-scaled bootstrap"
     print("\n" + "=" * 86)
-    print(f"Walk-forward widening, {horizon}-day horizon, tuned on the {FIT_LEVEL}% range")
+    print(f"Walk-forward widening on the {label}, {horizon}-day horizon, "
+          f"tuned on the {FIT_LEVEL}% range")
     if by_year.empty:
         print("Not enough resolved forecasts to fit a factor for any test year.")
         return
@@ -178,9 +183,10 @@ def report(results: pd.DataFrame, horizon: int):
             f"{s[f'in_{lvl}']:>9.1f}{s[f'below_{lvl}']:>7.1f}"
             f"{s[f'above_{lvl}']:>7.1f}{s[f'width_{lvl}']:>8.1f}" for lvl in INTERVALS))
 
-    worst = by_year.loc[by_year["asym_in_80"].idxmin()]
-    print(f"\nWorst test year, asymmetric: {int(worst['year'])} with "
-          f"{worst['asym_in_80']:.1f}% inside the 80% range.")
+    print("\nWorst test year inside the 80% range:")
+    for name, title in (("raw", "Raw"), ("sym", "Symmetric"), ("asym", "Asymmetric")):
+        worst = by_year.loc[by_year[f"{name}_in_80"].idxmin()]
+        print(f"  {title:<11}{worst[f'{name}_in_80']:.1f} ({int(worst['year'])})")
 
     # Factor to use from today on: fitted on every outcome known so far.
     results = results.copy()
@@ -193,13 +199,17 @@ def report(results: pd.DataFrame, horizon: int):
 
 
 def main():
-    horizons = [int(a) for a in sys.argv[1:]] or list(DEFAULT_HORIZONS)
+    args = sys.argv[1:]
+    method = "vol" if "--vol" in args else "bootstrap"
+    horizons = [int(a) for a in args if not a.startswith("--")] or list(DEFAULT_HORIZONS)
     for horizon in horizons:
-        path = os.path.join(REPORTS_DIR, f"calibration_{horizon}d.csv")
+        name = f"calibration_{horizon}d.csv" if method == "bootstrap" else f"calibration_vol_{horizon}d.csv"
+        path = os.path.join(REPORTS_DIR, name)
         if not os.path.exists(path):
-            print(f"\nMissing {path}. Run: python evaluate_calibration.py {horizon}")
+            flag = " --vol" if method == "vol" else ""
+            print(f"\nMissing {path}. Run: python evaluate_calibration.py {horizon}{flag}")
             continue
-        report(pd.read_csv(path), horizon)
+        report(pd.read_csv(path), horizon, method)
 
 
 if __name__ == "__main__":
