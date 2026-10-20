@@ -6,3 +6,9 @@ __pycache__/
 .DS_Store
 .venv/
 reports/
+
+data_cache/
+data_long_cache/
+models/
+.venv/
+__pycache__/
