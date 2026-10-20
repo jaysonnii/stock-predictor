@@ -18,8 +18,18 @@ A forecast is well calibrated when:
 - the PIT values (where each outcome fell inside its own forecast, 0 to 1) are
   spread evenly, about 10% in each decile
 
+Two methods:
+- "bootstrap": resample raw past returns (the original test).
+- "vol": volatility-scaled bootstrap (filtered historical simulation). Each
+  past return is divided by the EWMA volatility at the time, so history
+  becomes regime-free "shock sizes". Shocks are resampled in blocks and
+  rescaled to today's volatility, which drifts back toward the long-run
+  level with a fixed half-life. Ranges widen when markets are choppy and
+  narrow when they are calm.
+
 Every forecast here is out of sample by construction, because the bootstrap
-at date t only sees data up to t.
+at date t only sees data up to t. The vol settings below are fixed in
+advance, not tuned on the results.
 """
 import numpy as np
 import pandas as pd
@@ -34,6 +44,12 @@ N_SIMS = 2000            # bootstrap paths per forecast
 STEP_DAYS = 21           # one forecast per month per ticker
 MIN_HISTORY_DAYS = 504   # two years before the first forecast
 SEED = 42
+
+# Volatility-scaled method. Fixed choices, not fitted to the test.
+EWMA_LAMBDA = 0.94       # RiskMetrics daily standard
+VOL_HALF_LIFE = 63       # days for today's vol gap to the long run to halve
+EWMA_WARMUP = 20         # days to seed the EWMA before trusting it
+METHODS = ("bootstrap", "vol")
 
 
 def _log_returns(close: pd.Series) -> pd.Series:
@@ -77,6 +93,65 @@ def bootstrap_horizon_returns(
     return np.expm1(total)
 
 
+def ewma_volatility(log_returns: np.ndarray, lam: float = EWMA_LAMBDA):
+    """
+    Causal EWMA volatility.
+    sigma_before[s] uses returns before day s (the vol "expected" for day s).
+    sigma_after[s] uses returns up to and including day s (the vol for day s+1).
+    """
+    r = np.asarray(log_returns, dtype=float)
+    seed = r[:EWMA_WARMUP].var() if len(r) >= EWMA_WARMUP else r.var()
+    var_before = np.empty(len(r))
+    var = max(seed, 1e-10)
+    for s in range(len(r)):
+        var_before[s] = var
+        var = lam * var + (1 - lam) * r[s] ** 2
+    var_after = np.append(var_before[1:], var)
+    return np.sqrt(var_before), np.sqrt(var_after)
+
+
+def vol_scaled_horizon_returns(
+    past_log_returns: np.ndarray,
+    past_sigma: np.ndarray,
+    sigma_now: float,
+    horizon: int,
+    rng: np.random.Generator,
+    n_sims: int = N_SIMS,
+    block_days: int = BLOCK_DAYS,
+    half_life: float = VOL_HALF_LIFE,
+) -> np.ndarray:
+    """
+    Simulated simple returns over `horizon` days from vol-scaled shocks.
+    `past_sigma[s]` must be the vol known before day s.
+    """
+    r = np.asarray(past_log_returns, dtype=float)
+    sig = np.asarray(past_sigma, dtype=float)
+    mu = r.mean()
+    z = (r - mu) / np.maximum(sig, 1e-6)
+    n = len(z)
+    if n < block_days:
+        raise ValueError("Not enough history for one bootstrap block.")
+
+    # Daily variance path: today's variance decays toward the long-run level.
+    long_run_var = np.mean((r - mu) ** 2)
+    phi = 0.5 ** (1.0 / half_life)
+    steps = np.arange(1, horizon + 1)
+    var_path = long_run_var + (sigma_now ** 2 - long_run_var) * phi ** steps
+
+    cz = np.concatenate([[0.0], np.cumsum(z)])
+    total = np.full(n_sims, mu * horizon)
+    start_day = 0
+    while start_day < horizon:
+        length = min(block_days, horizon - start_day)
+        # One vol per block: the root of its average daily variance.
+        block_sigma = np.sqrt(var_path[start_day : start_day + length].mean())
+        starts = rng.integers(0, n - length + 1, size=n_sims)
+        total += block_sigma * (cz[starts + length] - cz[starts])
+        start_day += length
+
+    return np.expm1(total)
+
+
 def calibrate_ticker(
     close: pd.Series,
     horizon: int = 252,
@@ -85,22 +160,34 @@ def calibrate_ticker(
     n_sims: int = N_SIMS,
     block_days: int = BLOCK_DAYS,
     seed: int = SEED,
+    method: str = "bootstrap",
 ) -> pd.DataFrame:
     """
     One row per forecast date: the forecast quantiles, the actual return,
     its PIT value, and whether it fell inside each range.
     """
+    if method not in METHODS:
+        raise ValueError(f"method must be one of {METHODS}")
     log_ret = _log_returns(close)
     values = log_ret.values
     dates = log_ret.index
     rng = np.random.default_rng(seed)
+    if method == "vol":
+        sigma_before, sigma_after = ewma_volatility(values)
 
     rows = []
     # Position i means "forecast made at the close of dates[i]".
     last_origin = len(values) - horizon
     for i in range(min_history_days - 1, last_origin, step_days):
         past = values[: i + 1]
-        sims = bootstrap_horizon_returns(past, horizon, rng, n_sims, block_days)
+        if method == "vol":
+            # Skip the EWMA warm-up days, whose vol estimate is unreliable.
+            sims = vol_scaled_horizon_returns(
+                past[EWMA_WARMUP:], sigma_before[EWMA_WARMUP : i + 1],
+                sigma_after[i], horizon, rng, n_sims, block_days,
+            )
+        else:
+            sims = bootstrap_horizon_returns(past, horizon, rng, n_sims, block_days)
         actual = float(np.expm1(values[i + 1 : i + 1 + horizon].sum()))
 
         qs = np.quantile(sims, QUANTILES)
