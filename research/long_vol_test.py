@@ -13,7 +13,7 @@ Results are grouped by calendar year, so you can see which years the rule
 worked in and which it didn't.
 
 Usage (run from the project folder):
-    python long_vol_test.py
+    python -m research.long_vol_test
 """
 import os
 import time
@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from data import _naive_dates, fetch_stock_data
-from universe import _STOCKS
+from research.universe import _STOCKS
 
 HORIZON = 252
 TOP_FRACTION = 0.2

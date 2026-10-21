@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from data import get_feature_columns
-from pooled import _make_model, build_panel
+from research.pooled import _make_model, build_panel
 
 MIN_TICKERS_PER_DATE = 10
 TOP_FRACTION = 0.2

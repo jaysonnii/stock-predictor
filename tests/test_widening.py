@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-import widening
-from widening import fit_asymmetric, fit_symmetric, parse_dates, score, walk_forward, widen
+from research import widening
+from research.widening import fit_asymmetric, fit_symmetric, parse_dates, score, walk_forward, widen
 
 QS = (0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95)
 

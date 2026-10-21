@@ -10,8 +10,8 @@ portfolio actually returned. Two methods are scored on the same forecasts:
 - independent: separate blocks per holding. Ignores co-movement. A control.
 
 Usage (run from the project folder; uses the data_cache from pooled.py):
-    python evaluate_portfolio.py              # 63, 126 and 252 days
-    python evaluate_portfolio.py 252
+    python -m research.evaluate_portfolio              # 63, 126 and 252 days
+    python -m research.evaluate_portfolio 252
 Results are saved to reports/portfolio_calibration_<H>d.csv.
 """
 import os
@@ -28,10 +28,10 @@ from calibration import (
     pit_deciles,
     summarize,
 )
-from pooled import _load_raw
+from research.pooled import _load_raw
 from portfolio import QUANTILES, aligned_log_returns, ewma_matrix, portfolio_returns, simulate_joint_returns
 from ranges import HORIZONS
-from universe import TICKERS
+from research.universe import TICKERS
 
 REPORTS_DIR = "reports"
 DEFAULT_HORIZONS = (63, 126, 252)

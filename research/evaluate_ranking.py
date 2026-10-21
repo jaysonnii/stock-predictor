@@ -1,13 +1,13 @@
 """
 Ranking test for the pooled model. Run from the project folder:
 
-    python evaluate_ranking.py          # 252-day horizon
-    python evaluate_ranking.py 126      # custom horizon
+    python -m research.evaluate_ranking          # 252-day horizon
+    python -m research.evaluate_ranking 126      # custom horizon
 """
 import sys
 
-from pooled import build_panel
-from ranking import walk_forward_ranking
+from research.pooled import build_panel
+from research.ranking import walk_forward_ranking
 
 
 def main():

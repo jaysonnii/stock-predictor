@@ -2,10 +2,10 @@
 Calibration test for bootstrap return ranges across the universe.
 
 Usage (run from the project folder):
-    python evaluate_calibration.py              # 63, 126 and 252 day horizons
-    python evaluate_calibration.py 252          # one horizon
-    python evaluate_calibration.py 63 252       # several
-    python evaluate_calibration.py --vol        # volatility-scaled method
+    python -m research.evaluate_calibration              # 63, 126 and 252 day horizons
+    python -m research.evaluate_calibration 252          # one horizon
+    python -m research.evaluate_calibration 63 252       # several
+    python -m research.evaluate_calibration --vol        # volatility-scaled method
 
 Uses the same price cache as pooled.py (data_cache/). Per-forecast results
 are saved to reports/calibration_<H>d.csv (plain bootstrap) or
@@ -21,8 +21,8 @@ import sys
 import pandas as pd
 
 from calibration import INTERVALS, calibrate_ticker, pit_deciles, summarize
-from pooled import _load_raw
-from universe import _ETFS, TICKERS
+from research.pooled import _load_raw
+from research.universe import _ETFS, TICKERS
 
 REPORTS_DIR = "reports"
 DEFAULT_HORIZONS = (63, 126, 252)

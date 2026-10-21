@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from calibration import add_interval_columns, summarize
-from evaluate_portfolio import make_portfolios, score_portfolio
+from research.evaluate_portfolio import make_portfolios, score_portfolio
 from portfolio import aligned_log_returns, ewma_matrix, portfolio_returns, simulate_joint_returns
 
 

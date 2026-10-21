@@ -4,13 +4,13 @@ periods as the ranking test? If a simple rule matches the model, the model is
 mostly rediscovering that rule.
 
 Usage (run from the project folder, after the pooled data is cached):
-    python factor_check.py
+    python -m research.factor_check
 """
 import numpy as np
 import pandas as pd
 
-from pooled import build_panel
-from ranking import MIN_TICKERS_PER_DATE, TOP_FRACTION
+from research.pooled import build_panel
+from research.ranking import MIN_TICKERS_PER_DATE, TOP_FRACTION
 
 # Single features to rank by. "high" = top group by that value.
 SIMPLE_FEATURES = ["Ret_60", "Ret_30", "Volatility_20", "Price_to_MA200", "RSI"]
