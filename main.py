@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from model import predict_price, predict_price_with_fallback, train_model
 from data import fetch_stock_data
 from ranges import ranges_for_ticker
+from portfolio import portfolio_ranges
 
 app = FastAPI(
     title="Stock Price Predictor API",
@@ -103,6 +104,43 @@ class RangesResponse(BaseModel):
     as_of: str
     current_volatility_annual_pct: float
     horizons: list[HorizonRange]
+    method: str
+
+class HoldingIn(BaseModel):
+    ticker: str
+    shares: float
+
+class PortfolioRequest(BaseModel):
+    holdings: list[HoldingIn]
+
+class PortfolioRange(BaseModel):
+    level: int
+    low_value: float
+    high_value: float
+    low_return_pct: float
+    high_return_pct: float
+    historical_hit_rate_pct: float
+
+class PortfolioHorizon(BaseModel):
+    horizon: str
+    days: int
+    median_value: float
+    median_return_pct: float
+    ranges: list[PortfolioRange]
+    chance_of_loss_pct: float
+    bad_case_return_pct: float
+    bad_case_value: float
+    avg_worst_10pct_return_pct: float
+    worst_year_hit_rate_80_pct: float
+    worst_year: int
+    note: Optional[str]
+
+class PortfolioRangesResponse(BaseModel):
+    current_value: float
+    tickers: list[str]
+    common_history_from: str
+    as_of: str
+    horizons: list[PortfolioHorizon]
     method: str
 
 class HistoryResponse(BaseModel):
@@ -221,6 +259,24 @@ def get_ranges(ticker: str):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ranges failed: {str(e)}")
+
+
+@app.post("/portfolio/ranges", response_model=PortfolioRangesResponse)
+def get_portfolio_ranges(request: PortfolioRequest):
+    """
+    Value ranges and risk figures for a whole portfolio at 3, 6 and 12 months.
+    All holdings are simulated together from the same historical blocks, so
+    the ranges account for stocks falling at the same time.
+    """
+    if len(request.holdings) > 50:
+        raise HTTPException(status_code=400, detail="Up to 50 holdings at a time.")
+    try:
+        result = portfolio_ranges([h.model_dump() for h in request.holdings])
+        return {**result, "method": "Joint volatility-scaled block bootstrap, walk-forward tested"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Portfolio ranges failed: {str(e)}")
 
 
 @app.post("/train", response_model=TrainResponse)

@@ -122,6 +122,20 @@ def forecast_ranges(close: pd.Series, horizons=tuple(HORIZONS), seed: int = RANG
     }
 
 
+_close_cache = {}
+
+
+def get_close(ticker: str) -> pd.Series:
+    """Daily closes for the ranges, cached for an hour per ticker."""
+    ticker = ticker.upper().strip()
+    hit = _close_cache.get(ticker)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    close = fetch_stock_data(ticker, period=HISTORY_PERIOD)["Close"]
+    _close_cache[ticker] = (time.time(), close)
+    return close
+
+
 def ranges_for_ticker(ticker: str) -> dict:
     """Fetch history and compute ranges, cached for an hour per ticker."""
     ticker = ticker.upper().strip()
@@ -129,7 +143,6 @@ def ranges_for_ticker(ticker: str) -> dict:
     if hit and time.time() - hit[0] < CACHE_SECONDS:
         return hit[1]
 
-    df = fetch_stock_data(ticker, period=HISTORY_PERIOD)
-    result = {"ticker": ticker, **forecast_ranges(df["Close"])}
+    result = {"ticker": ticker, **forecast_ranges(get_close(ticker))}
     _cache[ticker] = (time.time(), result)
     return result

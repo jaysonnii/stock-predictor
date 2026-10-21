@@ -197,9 +197,13 @@ def calibrate_ticker(
         rows.append(row)
 
     out = pd.DataFrame(rows)
+    return add_interval_columns(out)
+
+
+def add_interval_columns(out: pd.DataFrame) -> pd.DataFrame:
+    """Inside, below, above and width for each range, from Actual and the Q columns."""
     if out.empty:
         return out
-
     for level, (lo, hi) in INTERVALS.items():
         lo_col, hi_col = f"Q{int(lo * 100):02d}", f"Q{int(hi * 100):02d}"
         out[f"In_{level}"] = (out["Actual"] >= out[lo_col]) & (out["Actual"] <= out[hi_col])
