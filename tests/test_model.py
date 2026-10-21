@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-import model
+from research import model
 
 
 class DummyRandomForest:

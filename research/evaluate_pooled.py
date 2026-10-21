@@ -2,12 +2,12 @@
 Walk-forward test for the pooled model across all tickers in universe.py.
 
 Usage:
-    python evaluate_pooled.py          # 252-day horizon
-    python evaluate_pooled.py 126      # custom horizon
+    python -m research.evaluate_pooled          # 252-day horizon
+    python -m research.evaluate_pooled 126      # custom horizon
 """
 import sys
 
-from pooled import build_panel, walk_forward_pooled
+from research.pooled import build_panel, walk_forward_pooled
 
 
 def main():

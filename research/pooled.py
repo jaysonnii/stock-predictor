@@ -6,8 +6,8 @@ window ("excess return"). Subtracting the market removes most of the drift
 that dominates single-stock returns.
 
 Usage:
-    python pooled.py train 252            # train and save the model
-    python pooled.py predict AMZN 252     # predicted excess return for one ticker
+    python -m research.pooled train 252            # train and save the model
+    python -m research.pooled predict AMZN 252     # predicted excess return for one ticker
 """
 import os
 import sys
@@ -27,7 +27,7 @@ from data import (
     fetch_stock_data,
     get_feature_columns,
 )
-from universe import BENCHMARK, TICKERS
+from research.universe import BENCHMARK, TICKERS
 
 CACHE_DIR = "data_cache"
 CACHE_SECONDS = 24 * 60 * 60
@@ -210,7 +210,7 @@ def predict_relative(ticker: str, horizon: int = 252) -> dict:
     model_path, scaler_path = _paths(horizon)
     if not os.path.exists(model_path):
         raise FileNotFoundError(
-            f"No pooled model for {horizon} days. Run: python pooled.py train {horizon}"
+            f"No pooled model for {horizon} days. Run: python -m research.pooled train {horizon}"
         )
 
     model = joblib.load(model_path)

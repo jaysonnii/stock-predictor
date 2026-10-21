@@ -17,9 +17,9 @@ outcome was already known before that year began. The test year is then
 scored with that k. No outcome is used to fit the factor that scores it.
 
 Usage (run from the project folder, after evaluate_calibration.py):
-    python widening.py              # 63, 126 and 252 day horizons
-    python widening.py 252          # one horizon
-    python widening.py --vol        # on the volatility-scaled results
+    python -m research.widening              # 63, 126 and 252 day horizons
+    python -m research.widening 252          # one horizon
+    python -m research.widening --vol        # on the volatility-scaled results
 
 k below 1 narrows the ranges. The grid runs from 0.80 to 2.50.
 """
@@ -207,7 +207,7 @@ def main():
         path = os.path.join(REPORTS_DIR, name)
         if not os.path.exists(path):
             flag = " --vol" if method == "vol" else ""
-            print(f"\nMissing {path}. Run: python evaluate_calibration.py {horizon}{flag}")
+            print(f"\nMissing {path}. Run: python -m research.evaluate_calibration {horizon}{flag}")
             continue
         report(pd.read_csv(path), horizon, method)
 

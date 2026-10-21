@@ -1,14 +1,13 @@
-venv/
-models/
+# Python
 __pycache__/
-*.pkl
 *.pyc
-.DS_Store
+venv/
 .venv/
-reports/
+.DS_Store
 
+# Generated locally by the research scripts
 data_cache/
 data_long_cache/
 models/
-.venv/
-__pycache__/
+*.pkl
+reports/

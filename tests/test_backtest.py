@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import backtest
+from research import backtest
 
 
 class DummyModel:

@@ -2,17 +2,17 @@
 Walk-forward accuracy check for one ticker.
 
 Usage:
-    python evaluate.py AMZN
-    python evaluate.py AMZN 126     # custom horizon in trading days
+    python -m research.evaluate AMZN
+    python -m research.evaluate AMZN 126     # custom horizon in trading days
 """
 import sys
 
-from model import walk_forward_evaluate
+from research.model import walk_forward_evaluate
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python evaluate.py TICKER [HORIZON_DAYS]")
+        print("Usage: python -m research.evaluate TICKER [HORIZON_DAYS]")
         sys.exit(1)
 
     ticker = sys.argv[1]

@@ -5,10 +5,10 @@ Both methods are scored on the same forecasts (same tickers and dates), and
 both are out of sample by construction, so every year counts.
 
 Usage (run from the project folder, after both calibration runs):
-    python evaluate_calibration.py          # plain bootstrap CSVs
-    python evaluate_calibration.py --vol    # vol-scaled CSVs
-    python compare_methods.py               # 63, 126 and 252 days
-    python compare_methods.py 252
+    python -m research.evaluate_calibration          # plain bootstrap CSVs
+    python -m research.evaluate_calibration --vol    # vol-scaled CSVs
+    python -m research.compare_methods               # 63, 126 and 252 days
+    python -m research.compare_methods 252
 """
 import os
 import sys
@@ -16,8 +16,8 @@ import sys
 import pandas as pd
 
 from calibration import INTERVALS, pit_deciles, summarize
-from evaluate_calibration import DEFAULT_HORIZONS, results_path
-from widening import parse_dates
+from research.evaluate_calibration import DEFAULT_HORIZONS, results_path
+from research.widening import parse_dates
 
 METHOD_LABELS = {"bootstrap": "Plain", "vol": "Vol-scaled"}
 
@@ -28,7 +28,7 @@ def load_aligned(horizon: int):
         path = results_path(horizon, method)
         if not os.path.exists(path):
             flag = " --vol" if method == "vol" else ""
-            print(f"\nMissing {path}. Run: python evaluate_calibration.py {horizon}{flag}")
+            print(f"\nMissing {path}. Run: python -m research.evaluate_calibration {horizon}{flag}")
             return None
         df = pd.read_csv(path)
         df["Date"] = parse_dates(df["Date"])
