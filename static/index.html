@@ -221,15 +221,26 @@
           <div>
             <div class="label">1 year median</div>
             <div class="value" id="sPred">—</div>
-            <span class="pill" id="sPredPill">from the ranges</span>
+            <span class="pill" id="sPredPill">portfolio range</span>
           </div>
         </div>
       </div>
 
       <div class="card" style="margin-top:20px">
-        <h2>Projected value, median</h2>
-        <div class="hint">Sum of each holding's median from its calibrated range. The middle outcome, not a target: half of outcomes land below it. A range for the whole portfolio needs a simulation of how holdings move together, which comes next.</div>
-        <div class="proj-grid" id="projGrid" style="margin-top:16px"></div>
+        <div class="top-inline">
+          <div>
+            <h2>Portfolio ranges</h2>
+            <div class="hint" id="pfHint">All holdings simulated together, so the ranges account for stocks falling at the same time.</div>
+          </div>
+          <div class="rlegend">
+            <span><i style="background:rgba(239,234,225,0.40)"></i>50% range</span>
+            <span><i style="background:rgba(239,234,225,0.20)"></i>80%</span>
+            <span><i style="background:rgba(239,234,225,0.10)"></i>90%</span>
+            <span><i style="background:var(--ink);width:2px"></i>median</span>
+            <span><i style="border-left:2px dashed var(--accent);width:0;border-radius:0"></i>today</span>
+          </div>
+        </div>
+        <div id="pfBody" class="empty">Ranges appear once your holdings load.</div>
       </div>
 
       <div class="grid two">
@@ -452,7 +463,6 @@
     const done = rows.filter(r => r.v);
     const value = done.reduce((s, r) => s + r.v.value, 0);
     const cost = done.reduce((s, r) => s + r.v.cost, 0);
-    const forecast = done.reduce((s, r) => s + r.v.forecast, 0);
     const pl = value - cost;
 
     $('sValue').textContent = done.length ? money(value) : '—';
@@ -462,32 +472,102 @@
     $('sPL').className = 'value ' + cls(pl);
     $('sPLPill').textContent = cost ? pct(pl / cost * 100) : '—';
     $('sPLPill').className = 'pill ' + cls(pl);
-    const fp = value ? (forecast - value) / value * 100 : null;
-    $('sPred').textContent = done.length ? money(forecast) : '—';
-    $('sPredPill').textContent = fp == null ? 'from the ranges' : pct(fp) + ' vs now';
-    $('sPredPill').className = 'pill ' + cls(fp);
-
     $('fullHoldings').innerHTML = holdingsTable(rows);
     renderAllocation(done);
-    renderProjection(done, value);
+    schedulePortfolio(done);
   }
 
-  function renderProjection(done, value) {
-    const el = $('projGrid');
+  // portfolio ranges: all holdings simulated together on the server
+  let pfKey = '';
+  let pfTimer = null;
+  let pfSeq = 0;
+
+  function schedulePortfolio(done) {
+    // Wait until every holding has loaded or failed, then ask once.
+    if (!holdings.every(h => priced[h.ticker])) return;
     if (!done.length) {
-      el.innerHTML = '<div class="empty">Projections appear once your holdings load.</div>';
+      pfKey = '';
+      $('pfBody').className = 'empty';
+      $('pfBody').textContent = 'Add holdings to see ranges for your whole portfolio.';
+      $('sPred').textContent = '—';
+      $('sPredPill').textContent = 'portfolio range';
+      $('sPredPill').className = 'pill';
       return;
     }
-    el.innerHTML = [0, 1, 2].map(i => {
-      const label = done[0].d.horizons[i];
-      const proj = done.reduce((sum, r) => sum + r.h.shares * r.d.horizons[i].median_price, 0);
-      const chg = value ? (proj - value) / value * 100 : null;
-      return `<div>
-        <div class="label">${esc(label.horizon)}, ${label.days} trading days</div>
-        <div class="value">${money(proj)}</div>
-        <span class="pill ${cls(chg)}">${pct(chg)} vs now</span>
+    const list = done.map(r => ({ ticker: r.h.ticker, shares: r.h.shares }));
+    const key = JSON.stringify(list);
+    if (key === pfKey) return;
+    pfKey = key;
+    clearTimeout(pfTimer);
+    pfTimer = setTimeout(() => loadPortfolio(list), 300);
+  }
+
+  async function loadPortfolio(list) {
+    const seq = ++pfSeq;
+    $('pfBody').className = 'empty';
+    $('pfBody').textContent = 'Simulating your holdings together...';
+    try {
+      const r = await fetch('/portfolio/ranges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holdings: list }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.detail || 'Request failed');
+      if (seq === pfSeq) renderPortfolioRanges(body);
+    } catch (e) {
+      if (seq === pfSeq) {
+        pfKey = '';  // allow a retry on the next change
+        $('pfBody').textContent = e.message;
+      }
+    }
+  }
+
+  function renderPortfolioRanges(p) {
+    const year = p.horizons[p.horizons.length - 1];
+    $('sPred').textContent = money(year.median_value);
+    $('sPredPill').textContent = pct(year.median_return_pct) + ' vs now';
+    $('sPredPill').className = 'pill ' + cls(year.median_return_pct);
+
+    const all = p.horizons.flatMap(h => h.ranges.map(x => [x.low_value, x.high_value]).flat());
+    const lo = Math.min(...all, p.current_value);
+    const hi = Math.max(...all, p.current_value);
+    const pos = v => ((v - lo) / (hi - lo || 1) * 100).toFixed(2) + '%';
+    const span = (a, b) => `left:${pos(a)};width:calc(${pos(b)} - ${pos(a)})`;
+    const m0 = n => (n == null || isNaN(n)) ? '—' : '$' + fmt(n, 0);
+    const pct1 = n => (n == null || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n, 1) + '%';
+
+    $('pfHint').textContent = `All ${p.tickers.length} holdings simulated together from shared history since ${p.common_history_from}, so the ranges account for stocks falling at the same time. Data as of ${p.as_of}.`;
+    $('pfBody').className = '';
+    $('pfBody').innerHTML = p.horizons.map(h => {
+      const g = Object.fromEntries(h.ranges.map(x => [x.level, x]));
+      return `
+      <div class="rrow">
+        <div class="rlabel">
+          <div class="hint">${esc(h.horizon)}</div>
+          <div class="value">${m0(h.median_value)}</div>
+          <span class="pill ${cls(h.median_return_pct)}">median ${pct1(h.median_return_pct)}</span>
+        </div>
+        <div>
+          <div class="band" role="img" aria-label="${esc(h.horizon)}: 80% range ${m0(g[80].low_value)} to ${m0(g[80].high_value)}">
+            <div class="b b90" style="${span(g[90].low_value, g[90].high_value)}"></div>
+            <div class="b b80" style="${span(g[80].low_value, g[80].high_value)}"></div>
+            <div class="b b50" style="${span(g[50].low_value, g[50].high_value)}"></div>
+            <div class="med" style="left:${pos(h.median_value)}"></div>
+            <div class="now" style="left:${pos(p.current_value)}"></div>
+          </div>
+          <div class="band-axis"><span>${m0(lo)}</span><span>${m0(hi)}</span></div>
+        </div>
+        <div class="rnums">
+          <span class="k">80% range</span><span>${m0(g[80].low_value)} to ${m0(g[80].high_value)}</span>
+          <span class="k">50% range</span><span>${m0(g[50].low_value)} to ${m0(g[50].high_value)}</span>
+          <span class="k">Chance of a loss</span><span>${fmt(h.chance_of_loss_pct, 0)}%</span>
+          <span class="k">Bad case, 1 in 10</span><span class="${cls(h.bad_case_return_pct)}">${m0(h.bad_case_value)} (${pct1(h.bad_case_return_pct)})</span>
+          <span class="k">Avg of worst 10%</span><span class="${cls(h.avg_worst_10pct_return_pct)}">${pct1(h.avg_worst_10pct_return_pct)}</span>
+        </div>
+        <div class="rnote">In tests on 40 random portfolios, the 80% range held ${fmt(g[80].historical_hit_rate_pct, 0)}% of the time, ${fmt(h.worst_year_hit_rate_80_pct, 0)}% in the worst year (${h.worst_year}).${h.note ? ' ' + esc(h.note) : ''}</div>
       </div>`;
-    }).join('');
+    }).join('') + `<div class="hint" style="margin-top:14px">Tested on equal weight portfolios of six large US stocks and ETFs. Smaller companies and concentrated weights were not part of that test. Not financial advice.</div>`;
   }
 
   function renderAllocation(done) {
