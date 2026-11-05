@@ -5,25 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock Predictor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
     color-scheme: dark;
-    --bg: #0c0d0d;
-    --ink: #efeae1;
-    --muted: #8d8a84;
-    --glass: rgba(255, 255, 255, 0.055);
-    --glass-strong: rgba(255, 255, 255, 0.09);
-    --glass-line: rgba(255, 255, 255, 0.11);
-    --row-line: rgba(255, 255, 255, 0.07);
-    --accent: #ff6a3d;
-    --accent-ink: #1a0a04;
-    --up: #6fd6a0;
-    --down: #ff8a80;
+    /* palette: Midnight Black, Electric Blue, Cantaloupe Orange */
+    --bg: #02070A;
+    --blue: #0297DE;
+    --orange: #FC734D;
+    --ink: #eef4f8;
+    --muted: #8797a3;
+    --glass: rgba(150, 200, 235, 0.05);
+    --glass-strong: rgba(150, 200, 235, 0.09);
+    --glass-line: rgba(150, 200, 235, 0.13);
+    --row-line: rgba(150, 200, 235, 0.08);
+    --accent: var(--orange);
+    --accent-ink: #1c0702;
+    --up: #5fd4a8;
+    --down: #ff8a75;
+    --serif: "Instrument Serif", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
     --radius: 22px;
-    --bloom-teal: rgba(96, 116, 134, 0.14);
-    --bloom-ember: rgba(128, 112, 98, 0.10);
+    --bloom-blue: rgba(2, 151, 222, 0.30);
+    --bloom-orange: rgba(252, 115, 77, 0.28);
     --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   }
 
@@ -32,9 +37,10 @@
     margin: 0;
     min-height: 100vh;
     background:
-      radial-gradient(60% 50% at 85% 0%, var(--bloom-teal), transparent 70%),
-      radial-gradient(50% 45% at 0% 100%, var(--bloom-ember), transparent 70%),
-      var(--bg);
+      radial-gradient(55% 45% at 60% -5%, var(--bloom-blue), transparent 70%),
+      radial-gradient(45% 40% at 85% 105%, var(--bloom-orange), transparent 70%),
+      radial-gradient(35% 30% at 0% 100%, rgba(2, 151, 222, 0.10), transparent 70%),
+      linear-gradient(180deg, #030b14 0%, var(--bg) 55%);
     background-attachment: fixed;
     color: var(--ink);
     font-family: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
@@ -42,7 +48,13 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
-  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-linear-gradient(90deg, rgba(120, 200, 255, 0.035) 0 1px, transparent 1px 7px);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 60%);
+    mask-image: linear-gradient(180deg, #000 0%, transparent 60%);
+  }
+  .app { position: relative; z-index: 1; display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
 
   /* sidebar */
   .side {
@@ -54,19 +66,21 @@
     border-right: 1px solid var(--glass-line);
   }
   .logo { font-weight: 600; font-size: 17px; display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; letter-spacing: -0.01em; }
-  .logo .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 5px rgba(239, 234, 225, 0.08); }
+  .logo .dot { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff 0 12%, var(--blue) 45%, var(--orange) 100%); box-shadow: 0 0 0 5px rgba(2, 151, 222, 0.12), 0 0 18px rgba(2, 151, 222, 0.45); }
   .nav { display: flex; flex-direction: column; gap: 4px; }
   .nav button {
     all: unset; cursor: pointer; display: block; box-sizing: border-box;
     padding: 10px 12px; border-radius: 12px; color: var(--muted); font-size: 14px; width: 100%;
   }
   .nav button:hover { color: var(--ink); background: var(--glass); }
-  .nav button.active { background: var(--ink); color: var(--bg); font-weight: 600; }
+  .nav button.active { background: linear-gradient(90deg, rgba(2, 151, 222, 0.28), rgba(2, 151, 222, 0.08)); color: var(--ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--blue); }
 
   /* layout */
   main { padding: 36px 40px; min-width: 0; }
   .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
-  h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+  h1 { font-family: var(--serif); font-size: 44px; font-weight: 400; letter-spacing: -0.01em; line-height: 1.05; margin: 0; }
+  h1 em, .serif em { font-style: italic; }
+  .sub { font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; }
   h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
   .sub, .hint { color: var(--muted); font-size: 13px; }
   .grid { display: grid; gap: 20px; }
@@ -89,7 +103,7 @@
   /* hero */
   .hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; align-items: end; }
   .hero-value {
-    font-size: clamp(42px, 6vw, 68px); font-weight: 500; letter-spacing: -0.03em;
+    font-family: var(--serif); font-size: clamp(48px, 7vw, 80px); font-weight: 400; letter-spacing: -0.01em;
     line-height: 1; margin: 14px 0 16px; font-variant-numeric: tabular-nums;
   }
   .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 28px; }
@@ -115,8 +129,9 @@
   .btn {
     font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 10px 18px;
     background: var(--accent); color: var(--accent-ink); cursor: pointer;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 6px 22px rgba(252, 115, 77, 0.28);
   }
+  .btn:hover { filter: brightness(1.06); }
   .btn.lime { background: var(--accent); color: var(--accent-ink); }
   .btn.ghost {
     background: var(--glass); color: var(--ink); border: 1px solid var(--glass-line);
@@ -132,7 +147,7 @@
 
   /* tables */
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 10px 8px; border-bottom: 1px solid var(--row-line); }
+  th { text-align: left; color: var(--muted); font-family: var(--mono); font-weight: 400; font-size: 11px; letter-spacing: 0.03em; padding: 10px 8px; border-bottom: 1px solid var(--row-line); }
   td { padding: 14px 8px; border-bottom: 1px solid var(--row-line); font-variant-numeric: tabular-nums; }
   .num { text-align: right; }
   tr.click { cursor: pointer; }
@@ -146,9 +161,9 @@
   .rlabel .value { font-size: 18px; margin-top: 2px; }
   .band { position: relative; height: 34px; }
   .band .b { position: absolute; top: 6px; bottom: 6px; border-radius: 8px; }
-  .band .b90 { background: rgba(239, 234, 225, 0.10); }
-  .band .b80 { background: rgba(239, 234, 225, 0.20); top: 3px; bottom: 3px; }
-  .band .b50 { background: rgba(239, 234, 225, 0.40); top: 0; bottom: 0; }
+  .band .b90 { background: rgba(2, 151, 222, 0.16); }
+  .band .b80 { background: rgba(2, 151, 222, 0.32); top: 3px; bottom: 3px; }
+  .band .b50 { background: linear-gradient(90deg, rgba(2, 151, 222, 0.75), rgba(90, 190, 240, 0.75)); top: 0; bottom: 0; }
   .band .med { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
   .band .now { position: absolute; top: -8px; bottom: -8px; width: 0; border-left: 2px dashed var(--accent); }
   .band-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
@@ -159,9 +174,141 @@
   .rnote { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: -8px; }
   .donut { position: relative; height: 300px; }
 
+  /* news */
+  .news { list-style: none; margin: 8px 0 0; padding: 0; }
+  .news li { padding: 12px 0; border-top: 1px solid var(--row-line); }
+  .news li:first-child { border-top: 0; }
+  .news a { color: var(--ink); text-decoration: none; font-weight: 500; }
+  .news a:hover { color: var(--accent); }
+  .news .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .news .sum { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  /* watchlist */
+  .wsummary { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .wsummary:empty { display: none; }
+  .wgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+  .wcard { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+  .wcard.hit { border-color: rgba(252, 115, 77, 0.7); box-shadow: 0 0 0 1px rgba(252, 115, 77, 0.35), 0 0 32px rgba(252, 115, 77, 0.18), var(--shadow); }
+  .whead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .wtick { all: unset; cursor: pointer; font-weight: 600; font-size: 18px; }
+  .wtick:hover { color: var(--blue); }
+  .wprice { font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 4px; }
+  .wspark { width: 120px; height: 44px; flex: none; }
+  .wlabel { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+  .wmeter { position: relative; height: 10px; border-radius: 6px; background: rgba(150, 200, 235, 0.08); margin: 14px 0 6px; }
+  .wmeter .in { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: rgba(2, 151, 222, 0.45); }
+  .wmeter .dot { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 3px rgba(2, 7, 10, 0.9); }
+  .wmeter .start { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dashed var(--muted); }
+  .wmeter-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .wstatus { font-size: 13px; margin-top: 6px; }
+  .walerts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .walerts label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .walerts input { padding: 8px 12px; width: 100%; min-width: 0; }
+  .walerts input.hitbox { border-color: var(--orange); color: var(--orange); }
+  .wnews a { color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .wnews a:hover { color: var(--blue); }
+  .wnote { width: 100%; resize: vertical; min-height: 58px; font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--glass-line); border-radius: 12px; background: var(--glass); color: var(--ink); }
+  .wfoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* goal tracker */
+  .goalbar { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; width: 100%; margin: -10px 0 22px; padding: 10px 16px; border-radius: 14px; border: 1px solid rgba(252, 115, 77, 0.45); background: linear-gradient(90deg, rgba(252, 115, 77, 0.16), rgba(2, 151, 222, 0.10)); font-size: 14px; }
+  .goalbar b { font-family: var(--serif); font-weight: 400; font-size: 20px; letter-spacing: 0; }
+  .goalbar .gb-q { margin-left: auto; color: var(--orange); font-weight: 600; }
+  .goalbar:hover { border-color: var(--orange); }
+  .ghero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; align-items: center; }
+  .gbar { height: 14px; border-radius: 8px; background: rgba(150, 200, 235, 0.08); overflow: hidden; margin-top: 4px; }
+  .gfill { height: 100%; width: 0; border-radius: 8px; background: linear-gradient(90deg, var(--blue), var(--orange)); transition: width 1s ease; }
+  .gbar-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .gtaunt { font-family: var(--serif); font-size: 26px; line-height: 1.2; margin-top: 20px; color: var(--ink); }
+  .gtaunt em { color: var(--orange); }
+  .glogwrap { margin-top: 8px; max-height: 460px; overflow-y: auto; padding-right: 6px; }
+  .glogmonth { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin: 14px 0 2px; }
+  .glog { padding: 10px 0; border-top: 1px solid var(--row-line); font-size: 14px; }
+  .glog:first-child { border-top: 0; }
+  .glog .hint { font-size: 12px; }
+  .gsettings { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
+  .gsettings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .gsettings label:last-child { grid-column: 1 / -1; }
+  .gate { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: radial-gradient(60% 50% at 50% 0%, rgba(2, 151, 222, 0.35), transparent 70%), radial-gradient(50% 45% at 50% 100%, rgba(252, 115, 77, 0.28), transparent 70%), rgba(2, 7, 10, 0.97); overflow-y: auto; }
+  .gate-card { width: min(620px, 100%); }
+  .gate h2.q { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 7vw, 68px); line-height: 1.02; letter-spacing: -0.01em; margin: 10px 0 14px; }
+  .gate h2.q em { color: var(--orange); }
+  .gate p { color: var(--muted); font-size: 16px; margin: 0 0 18px; }
+  .gate .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .gate input, .gate textarea { width: 100%; font-size: 18px; padding: 14px 16px; }
+  .gate textarea { min-height: 90px; resize: vertical; font: inherit; font-size: 17px; border: 1px solid var(--glass-line); border-radius: 12px; background: var(--glass); color: var(--ink); }
+  .gate .btn { font-size: 16px; padding: 12px 22px; }
+  .gate .err { color: var(--orange); font-size: 14px; min-height: 20px; margin-top: 8px; }
+  .gate .typed { font-family: var(--mono); font-size: 15px; padding: 14px 16px; border-radius: 12px; border: 1px dashed var(--glass-line); margin-bottom: 12px; color: var(--ink); }
+  .gate .dots { display: flex; gap: 6px; margin-bottom: 18px; }
+  .gate .dots i { width: 28px; height: 4px; border-radius: 2px; background: rgba(150, 200, 235, 0.15); }
+  .gate .dots i.on { background: var(--orange); }
+  body.gated { overflow: hidden; }
+
+  /* alert pop-ups, top right */
+  .toasts { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; width: min(360px, calc(100vw - 40px)); pointer-events: none; }
+  .toast {
+    pointer-events: auto; position: relative; padding: 14px 40px 14px 16px; border-radius: 16px;
+    background: rgba(8, 16, 22, 0.92); border: 1px solid rgba(252, 115, 77, 0.55);
+    -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+    box-shadow: 0 0 0 1px rgba(252, 115, 77, 0.2), 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(252, 115, 77, 0.15);
+    animation: toastIn 0.25s ease-out;
+  }
+  .toast.fall { border-color: rgba(2, 151, 222, 0.6); box-shadow: 0 0 0 1px rgba(2, 151, 222, 0.2), 0 18px 40px rgba(0, 0, 0, 0.55), 0 0 30px rgba(2, 151, 222, 0.18); }
+  .toast .tt { font-weight: 600; font-size: 14px; }
+  .toast .tm { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .toast .tx { all: unset; cursor: pointer; position: absolute; top: 10px; right: 12px; color: var(--muted); font-size: 16px; line-height: 1; padding: 4px; }
+  .toast .tx:hover { color: var(--ink); }
+  .toast .btn.ghost { margin-top: 10px; }
+  .toast.out { opacity: 0; transform: translateX(20px); transition: opacity 0.3s, transform 0.3s; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+  /* ideas */
+  .sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 4px; }
+  .sbox { border: 1px solid var(--glass-line); border-radius: 16px; padding: 14px 16px; background: rgba(2, 7, 10, 0.35); min-width: 0; }
+  .sbox b { display: block; font-size: 14px; margin-bottom: 6px; }
+  .sbox .verdict { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; display: inline-block; padding: 2px 8px; border-radius: 999px; margin-bottom: 8px; border: 1px solid var(--glass-line); color: var(--muted); }
+  .sbox .verdict.held { color: var(--blue); border-color: rgba(2, 151, 222, 0.6); }
+  .sbox .verdict.weak { color: var(--orange); border-color: rgba(252, 115, 77, 0.5); }
+  .sbox .txt { font-size: 13px; color: var(--muted); }
+  .schip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(2, 151, 222, 0.45); color: var(--ink); background: rgba(2, 151, 222, 0.12); }
+  .ireasons { margin: 0; padding-left: 18px; font-size: 14px; }
+  .ireasons li { margin-bottom: 6px; }
+  .ireasons .k { color: var(--muted); font-size: 12px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  /* learn */
+  .learn-group { color: var(--muted); font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin: 28px 4px 10px; }
+  .lesson { margin-top: 12px; padding: 0; scroll-margin-top: 20px; }
+  .lesson summary { list-style: none; cursor: pointer; display: flex; gap: 16px; align-items: center; padding: 20px 24px; }
+  .lesson summary::-webkit-details-marker { display: none; }
+  .lesson summary::after { content: '+'; margin-left: auto; color: var(--muted); font-size: 20px; line-height: 1; }
+  .lesson[open] summary::after { content: '\2212'; }
+  .lesson summary b { display: block; font-weight: 600; font-size: 15px; }
+  .lesson summary:hover b { color: var(--blue); }
+  .lesson[open] .ln { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .lesson .ln { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--glass-strong); border: 1px solid var(--glass-line); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .lbody { padding: 0 24px 22px 70px; max-width: 820px; }
+  .lbody p { margin: 0 0 12px; }
+  .takeaway { border-left: 2px solid var(--accent); padding: 4px 0 4px 14px; margin: 16px 0 12px; font-weight: 500; }
+  .ltable { max-width: 460px; margin: 4px 0 14px; }
+  .ltable td { padding: 9px 8px; }
+  .ldl { margin: 0 0 12px; }
+  .ldl dt { font-weight: 600; margin-top: 12px; }
+  .ldl dd { margin: 2px 0 0; color: var(--ink); opacity: 0.9; }
+  .lul { margin: 0 0 12px; padding-left: 18px; }
+  .lul li { margin-bottom: 8px; }
+
   /* phones and small tablets */
   @media (max-width: 900px) {
-    .app { grid-template-columns: 1fr; }
+    .wgrid { grid-template-columns: minmax(0, 1fr); }
+    .ghero { grid-template-columns: 1fr; padding: 24px; }
+    .goalbar .gb-q { margin-left: 0; }
+    #watchForm input { flex: 1 1 100%; min-width: 0; width: 100%; }
+    .wspark { width: 90px; }
+    .lbody { padding: 0 18px 18px; }
+    .lesson summary { padding: 16px 18px; }
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .side { min-width: 0; }
     .side { position: static; height: auto; flex-direction: column; padding: 14px 16px; }
     .logo { padding: 0 0 6px; }
     .nav { flex-direction: row; overflow-x: auto; }
@@ -182,9 +329,12 @@
   <aside class="side">
     <div class="logo"><span class="dot"></span>Predictor</div>
     <nav class="nav">
+      <button data-view="goal">$1M Goal</button>
       <button data-view="holdings" class="active">Holdings</button>
       <button data-view="predict">Ranges</button>
+      <button data-view="watch">Keep an eye on</button>
       <button data-view="dividends">High dividend ETFs</button>
+      <button data-view="learn">Learn</button>
     </nav>
   </aside>
 
@@ -233,9 +383,9 @@
             <div class="hint" id="pfHint">All holdings simulated together, so the ranges account for stocks falling at the same time.</div>
           </div>
           <div class="rlegend">
-            <span><i style="background:rgba(239,234,225,0.40)"></i>50% range</span>
-            <span><i style="background:rgba(239,234,225,0.20)"></i>80%</span>
-            <span><i style="background:rgba(239,234,225,0.10)"></i>90%</span>
+            <span><i style="background:rgba(2,151,222,0.75)"></i>50% range</span>
+            <span><i style="background:rgba(2,151,222,0.32)"></i>80%</span>
+            <span><i style="background:rgba(2,151,222,0.16)"></i>90%</span>
             <span><i style="background:var(--ink);width:2px"></i>median</span>
             <span><i style="border-left:2px dashed var(--accent);width:0;border-radius:0"></i>today</span>
           </div>
@@ -290,14 +440,20 @@
             <div class="hint" id="rHint">Ranges, not predictions. Built from this stock's own past returns, scaled to today's volatility.</div>
           </div>
           <div class="rlegend">
-            <span><i style="background:rgba(239,234,225,0.40)"></i>50% range</span>
-            <span><i style="background:rgba(239,234,225,0.20)"></i>80%</span>
-            <span><i style="background:rgba(239,234,225,0.10)"></i>90%</span>
+            <span><i style="background:rgba(2,151,222,0.75)"></i>50% range</span>
+            <span><i style="background:rgba(2,151,222,0.32)"></i>80%</span>
+            <span><i style="background:rgba(2,151,222,0.16)"></i>90%</span>
             <span><i style="background:var(--ink);width:2px"></i>median</span>
             <span><i style="border-left:2px dashed var(--accent);width:0;border-radius:0"></i>today</span>
           </div>
         </div>
         <div id="rangesBody" class="empty">Pick a ticker to see its ranges.</div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>Recent news</h2>
+        <div class="hint" id="nHint">Latest Yahoo Finance headlines, for context. They do not change the ranges above.</div>
+        <div id="newsBody" class="empty">Pick a ticker to see its news.</div>
       </div>
 
       <div class="grid two" style="grid-template-columns:1fr 1fr">
@@ -316,11 +472,101 @@
             <input id="pShares" type="number" step="any" min="0" placeholder="Shares" style="width:120px">
             <input id="pCost" type="number" step="any" min="0" placeholder="Cost basis $" style="width:140px">
             <button class="btn" id="pAdd" type="button">Add</button>
+            <button class="btn ghost" id="pWatch" type="button" style="padding:10px 14px;font-size:14px">Keep an eye on it</button>
           </div>
           <div class="hint" style="margin:18px 0 10px">Quick picks</div>
           <div class="chips" id="quick"></div>
         </div>
       </div>
+    </section>
+
+    <!-- GOAL -->
+    <section id="view-goal" class="view hidden">
+      <div class="card ghero">
+        <div>
+          <div class="wlabel">Left to go</div>
+          <div class="hero-value" id="gLeft">—</div>
+          <div class="gbar" role="img" id="gBarWrap" aria-label="Progress to goal"><div class="gfill" id="gFill"></div></div>
+          <div class="gbar-axis"><span id="gNow">—</span><span id="gTarget">$1,000,000</span></div>
+          <div class="gtaunt" id="gTaunt"></div>
+        </div>
+        <div class="hero-stats">
+          <div><div class="hint">Days left</div><div class="value" id="gDays">—</div><span class="pill" id="gDeadline">—</span></div>
+          <div><div class="hint">Needed per month</div><div class="value" id="gMonthly">—</div><span class="pill" id="gMonthlyPill">—</span></div>
+          <div><div class="hint">Versus the pace you need</div><div class="value" id="gPace">—</div><span class="pill" id="gPacePill">—</span></div>
+          <div><div class="hint">Check in streak</div><div class="value" id="gStreak">—</div><span class="pill" id="gStreakPill">—</span></div>
+        </div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h2>Net worth over time</h2>
+          <div class="hint">Your daily check ins against the path that reaches the goal on time.</div>
+          <div class="chartbox" style="height:280px;margin-top:12px"><canvas id="goalChart"></canvas></div>
+          <div class="empty hidden" id="goalChartEmpty">Check in on two different days to see your line.</div>
+        </div>
+        <div class="card">
+          <div class="top-inline" style="margin-bottom:0">
+            <div>
+              <h2>Everything you said you would do</h2>
+              <div class="hint" id="gLogHint">Every check in, newest first.</div>
+            </div>
+            <a class="btn ghost" href="/goal/checkins.csv" download style="text-decoration:none">Download all</a>
+          </div>
+          <input id="gLogSearch" placeholder="Search your answers" autocomplete="off" style="width:100%;margin-top:12px">
+          <div id="gLog" class="glogwrap"></div>
+          <div class="hint" id="gSync" style="margin-top:10px;font-size:12px"></div>
+          <button class="btn ghost" type="button" id="gAgain" style="margin-top:12px">Check in again now</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>Goal settings</h2>
+        <div class="gsettings">
+          <label>Target $<input id="gsTarget" type="number" step="1000" min="1"></label>
+          <label>Deadline<input id="gsDeadline" type="date"></label>
+          <label>Assumed yearly return %<input id="gsReturn" type="number" step="0.5" min="0" max="20"></label>
+          <label>Goal statement you type every day<input id="gsStatement" maxlength="160"></label>
+        </div>
+        <div class="hint" style="margin-top:10px">Needed per month assumes your money grows at the return above on top of what you add. It is a planning number, not a promise. Saved in this browser.</div>
+      </div>
+    </section>
+
+    <!-- WATCHLIST -->
+    <section id="view-watch" class="view hidden">
+      <div class="card">
+        <div class="top-inline">
+          <div>
+            <h2>Watchlist</h2>
+            <div class="hint" id="wStatus">Add a ticker to start watching it.</div>
+          </div>
+          <span style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn ghost" type="button" id="wNotify">Desktop alerts: off</button>
+            <button class="btn ghost" type="button" id="wRefresh">Refresh prices</button>
+          </span>
+        </div>
+        <form class="chips" id="watchForm" autocomplete="off">
+          <input id="wTicker" placeholder="Ticker, e.g. NVDA" maxlength="12" style="width:170px">
+          <input id="wNote" placeholder="Why are you watching it? (optional)" maxlength="300" style="flex:1;min-width:220px">
+          <button class="btn" type="submit">Watch</button>
+        </form>
+        <div class="wsummary" id="wSummary"></div>
+      </div>
+      <div class="wgrid" id="watchList"></div>
+      <div class="hint" style="margin:18px 4px 0">Saved in this browser. Alerts are checked whenever this page loads prices, so they show here rather than on your phone. The range is the 3 month 80% range from the day you started watching. Not financial advice.</div>
+
+      <div class="card" style="margin-top:28px">
+        <div class="top-inline">
+          <div>
+            <h2>Ideas worth a look</h2>
+            <div class="hint" id="iHint">A rule based screen of large US stocks. Each idea says which rule picked it and why. These are starting points to research, not predictions that a stock will go up.</div>
+          </div>
+        </div>
+        <div class="wlabel" style="margin-top:6px">How each signal did in testing</div>
+        <div class="sgrid" id="sigRecord"><div class="hint">Loading...</div></div>
+      </div>
+      <div class="wgrid" id="ideasList"><div class="card empty" style="grid-column:1/-1">Screening stocks. The first load can take a minute while analyst data downloads.</div></div>
+      <div class="hint" id="iFoot" style="margin:18px 4px 0"></div>
     </section>
 
     <!-- DIVIDENDS -->
@@ -343,9 +589,187 @@
         <div id="divTable"></div>
       </div>
     </section>
+
+    <!-- LEARN -->
+    <section id="view-learn" class="view hidden">
+      <div class="card learn-intro">
+        <h2>Investing basics</h2>
+        <div class="hint">Short lessons on the ideas behind long term investing. Open any one to read it. General education only, not financial advice.</div>
+        <div class="chips" style="margin-top:14px">
+          <a class="chip" href="#l-stocks">Foundations</a>
+          <a class="chip" href="#l-risk">Risk</a>
+          <a class="chip" href="#l-compound">Growing money</a>
+          <a class="chip" href="#l-costs">Costs and accounts</a>
+          <a class="chip" href="#l-habits">Habits</a>
+        </div>
+      </div>
+
+      <div class="learn-group">Foundations</div>
+
+      <details class="card lesson" id="l-stocks">
+        <summary><span class="ln">1</span><span><b>What you own when you buy a stock</b><span class="hint">A share is a small piece of a real business.</span></span></summary>
+        <div class="lbody">
+          <p>A share of stock is part ownership of a company. If the company earns more over time, each share usually becomes worth more, and some companies also pay part of their profit to owners as dividends.</p>
+          <p>In the short run, a stock's price moves with news, interest rates and mood. Over many years it tends to follow the company's earnings. That gap explains why prices can swing a lot even when nothing about the business has changed.</p>
+          <div class="takeaway">Buying a stock means betting on a business, not a ticker symbol.</div>
+        </div>
+      </details>
+
+      <details class="card lesson" id="l-etfs">
+        <summary><span class="ln">2</span><span><b>ETFs and index funds</b><span class="hint">One purchase, hundreds of companies.</span></span></summary>
+        <div class="lbody">
+          <p>A fund pools money from many investors and buys a basket of investments. An index fund simply copies a list, such as the S&amp;P 500 (about 500 large US companies), instead of paying a manager to pick winners.</p>
+          <p>An ETF (exchange traded fund) is a fund that trades on the stock market like a single stock. Many ETFs are index funds. Broad ones such as total market funds spread your money across thousands of companies for a very small yearly fee.</p>
+          <p>Not every ETF is broad or cheap. Some hold one narrow industry, use leverage to double or triple daily moves, or use options to pay high income. Read what a fund actually holds before buying it.</p>
+          <div class="takeaway">A low cost broad index fund is the simplest way to own the whole market.</div>
+        </div>
+      </details>
+
+      <div class="learn-group" id="l-risk">Risk</div>
+
+      <details class="card lesson">
+        <summary><span class="ln">3</span><span><b>Risk and return travel together</b><span class="hint">Higher expected returns come with bigger swings.</span></span></summary>
+        <div class="lbody">
+          <p>Cash in a savings account rarely loses value, but it grows slowly. Bonds usually move more than cash and less than stocks. Stocks have grown the most over long periods, and they are also the most likely to drop sharply along the way.</p>
+          <p>Large US stocks have returned roughly 10% a year before inflation over the last century, but that is an average. Plenty of single years were down 20% or more, and plenty were up 30%.</p>
+          <div class="takeaway">The extra return from stocks is payment for sitting through the drops.</div>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">4</span><span><b>Volatility and drawdowns</b><span class="hint">How far, and how often, prices fall.</span></span></summary>
+        <div class="lbody">
+          <p>Volatility measures how much a price bounces around. A drawdown is the fall from a peak to a low. The S&amp;P 500 fell about 57% from 2007 to 2009, about 34% in a few weeks in 2020, and about 25% in 2022.</p>
+          <p>Losses and gains are not symmetric. After a 50% drop you need a 100% gain just to get back to even. That is why avoiding very large losses matters more than catching every last bit of upside.</p>
+          <table class="ltable">
+            <tr><th>Drop</th><th class="num">Gain needed to recover</th></tr>
+            <tr><td>10%</td><td class="num">11%</td></tr>
+            <tr><td>25%</td><td class="num">33%</td></tr>
+            <tr><td>50%</td><td class="num">100%</td></tr>
+            <tr><td>80%</td><td class="num">400%</td></tr>
+          </table>
+          <div class="takeaway">Plan for a big drop before it happens, so you are not deciding in a panic. The Ranges tab shows how wide a stock's swings have been.</div>
+          <button class="btn ghost" type="button" data-goto="predict">Open Ranges</button>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">5</span><span><b>Diversification</b><span class="hint">Do not let one company decide your future.</span></span></summary>
+        <div class="lbody">
+          <p>Any single company can fail, get disrupted or lose most of its value, even famous ones. Holding many companies across different industries and countries means one bad outcome hurts a little instead of a lot.</p>
+          <p>Diversification does not stop the whole market from falling together. In a crash most stocks drop at the same time. It protects you from the risk of one company, not from market risk.</p>
+          <p>Owning ten tech stocks is not very diversified, because they tend to move together. The Holdings tab simulates your stocks falling at the same time for exactly this reason.</p>
+          <div class="takeaway">Spread out across companies and sectors, and keep any single stock to a small share of the total.</div>
+        </div>
+      </details>
+
+      <div class="learn-group" id="l-compound">Growing money</div>
+
+      <details class="card lesson">
+        <summary><span class="ln">6</span><span><b>Compounding</b><span class="hint">Returns that earn their own returns.</span></span></summary>
+        <div class="lbody">
+          <p>When gains stay invested, next year's growth applies to a bigger amount. The effect is small at first and large later, which is why time matters more than almost anything else.</p>
+          <table class="ltable">
+            <tr><th>$10,000 growing 7% a year</th><th class="num">Value</th></tr>
+            <tr><td>After 10 years</td><td class="num">$19,672</td></tr>
+            <tr><td>After 20 years</td><td class="num">$38,697</td></tr>
+            <tr><td>After 30 years</td><td class="num">$76,123</td></tr>
+          </table>
+          <p>A quick shortcut is the rule of 72: divide 72 by the yearly return to estimate how many years it takes money to double. At 7% that is about 10 years.</p>
+          <div class="takeaway">Starting early does more than picking the perfect investment.</div>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">7</span><span><b>Investing a little every month</b><span class="hint">Dollar cost averaging and time in the market.</span></span></summary>
+        <div class="lbody">
+          <p>Dollar cost averaging means investing a fixed amount on a schedule, such as every payday, no matter what the market is doing. You buy more shares when prices are low and fewer when they are high, and you never have to guess the right moment.</p>
+          <p>Investing $300 a month for 30 years at 7% a year adds up to about $366,000, from $108,000 of your own money. The rest is compounding.</p>
+          <p>Trying to jump out before drops and back in before rallies usually backfires. Many of the best days in the market come right after the worst ones, and missing a handful of them cuts long term returns sharply.</p>
+          <div class="takeaway">Time in the market beats timing the market.</div>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">8</span><span><b>Dividends and total return</b><span class="hint">A high yield is not free money.</span></span></summary>
+        <div class="lbody">
+          <p>A dividend is cash a company or fund pays to its owners. Yield is the past year's payments divided by today's price. When a dividend is paid, the share price drops by about the same amount, so the payout is moved from the investment into your account rather than created from nothing.</p>
+          <p>What matters is total return: price change plus dividends. A fund yielding 12% whose price falls 8% a year has only returned about 4%. Many very high yield funds sell options to generate income, which caps how much they gain when markets rise.</p>
+          <p>In a taxable account, dividends are usually taxed in the year you receive them, even if you reinvest them.</p>
+          <div class="takeaway">Judge an income fund by total return, not by its yield alone.</div>
+          <button class="btn ghost" type="button" data-goto="dividends">Open High dividend ETFs</button>
+        </div>
+      </details>
+
+      <div class="learn-group" id="l-costs">Costs and accounts</div>
+
+      <details class="card lesson">
+        <summary><span class="ln">9</span><span><b>Fees add up</b><span class="hint">Small yearly costs, big long term difference.</span></span></summary>
+        <div class="lbody">
+          <p>Funds charge a yearly fee called the expense ratio. Broad index funds can cost 0.03% to 0.10% a year. Some actively managed funds and advisors charge 1% or more.</p>
+          <table class="ltable">
+            <tr><th>$100,000 for 30 years</th><th class="num">Ending value</th></tr>
+            <tr><td>7% a year, almost no fees</td><td class="num">$761,226</td></tr>
+            <tr><td>7% a year minus a 1% fee</td><td class="num">$574,349</td></tr>
+          </table>
+          <p>That 1% fee costs about $187,000 over 30 years. Frequent trading and short term gains taxes take a bite in the same way.</p>
+          <div class="takeaway">You cannot control returns, but you can control costs.</div>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">10</span><span><b>Account types in the US</b><span class="hint">Where you invest changes what you keep after tax.</span></span></summary>
+        <div class="lbody">
+          <dl class="ldl">
+            <dt>401(k) or 403(b)</dt><dd>A retirement plan through your employer. Contributions come out of your paycheck, often before tax, and many employers add a match. A match is part of your pay, so it is worth getting in full when you can.</dd>
+            <dt>Traditional IRA</dt><dd>An individual retirement account. Contributions may be tax deductible, the money grows untaxed, and withdrawals in retirement are taxed as income.</dd>
+            <dt>Roth IRA or Roth 401(k)</dt><dd>You contribute money that has already been taxed. It grows tax free, and qualified withdrawals in retirement are also tax free. Roth IRAs have income limits.</dd>
+            <dt>HSA</dt><dd>A health savings account, available with a high deductible health plan. Money goes in before tax, grows untaxed, and comes out tax free for medical costs.</dd>
+            <dt>Taxable brokerage</dt><dd>No limits and no withdrawal rules, but you pay tax on dividends and on gains when you sell. Gains on investments held longer than a year are usually taxed at a lower rate than short term gains.</dd>
+          </dl>
+          <p>Retirement accounts generally charge a penalty for withdrawals before age 59½, with some exceptions. Contribution limits change every year, so check the current numbers on irs.gov.</p>
+          <div class="takeaway">Use tax advantaged accounts first, then a regular brokerage account for the rest.</div>
+        </div>
+      </details>
+
+      <div class="learn-group" id="l-habits">Habits</div>
+
+      <details class="card lesson">
+        <summary><span class="ln">11</span><span><b>Before you invest</b><span class="hint">Build the base first.</span></span></summary>
+        <div class="lbody">
+          <p>Money you will need within a few years does not belong in stocks, because a drop could hit right when you need it. Most guides suggest keeping an emergency fund of three to six months of expenses in cash first.</p>
+          <p>Paying off high interest debt, such as a credit card charging 20% or more, is a guaranteed return that stocks cannot match.</p>
+          <div class="takeaway">Invest money you can leave alone for at least five years.</div>
+        </div>
+      </details>
+
+      <details class="card lesson">
+        <summary><span class="ln">12</span><span><b>Common mistakes</b><span class="hint">Most losses come from behavior, not bad luck.</span></span></summary>
+        <div class="lbody">
+          <ul class="lul">
+            <li><b>Chasing what just went up.</b> Last year's top performer is often not next year's.</li>
+            <li><b>Selling in a panic.</b> Selling after a crash locks in the loss and often misses the recovery.</li>
+            <li><b>Too much in one stock.</b> This includes your employer's stock, which ties your savings to your paycheck.</li>
+            <li><b>Leverage and options without a plan.</b> They can lose more, faster, than the stock itself.</li>
+            <li><b>Trusting price targets.</b> No one reliably predicts exact prices. Think in ranges of outcomes instead.</li>
+            <li><b>Checking too often.</b> Daily moves are mostly noise and push you toward bad trades.</li>
+          </ul>
+          <div class="takeaway">A simple plan you stick with beats a clever plan you abandon.</div>
+        </div>
+      </details>
+
+      <div class="hint" style="margin:22px 4px 0">General education only, not financial, tax or legal advice. Figures are illustrations, not promises. Past returns do not guarantee future results.</div>
+    </section>
   </main>
 </div>
 
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="gate hidden" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateQ">
+  <div class="gate-card">
+    <div class="wlabel" id="gateStep">Daily check in</div>
+    <div id="gateBody"></div>
+  </div>
+</div>
 <script>
   const $ = id => document.getElementById(id);
   const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -361,7 +785,7 @@
     ['NVDA', 'Nvidia'], ['TSLA', 'Tesla'], ['SPY', 'S&P 500 ETF'], ['QQQ', 'Nasdaq 100 ETF'],
     ['QQQI', 'QQQI'], ['SCHD', 'SCHD'], ['JEPQ', 'JEPQ'],
   ];
-  const PALETTE = ['#c4623a', '#3d7fc0', '#6f9a3a', '#8a63b8', '#a0821c', '#1f9a86'];
+  const PALETTE = ['#0297DE', '#FC734D', '#7fd0f5', '#ffb49b', '#1d5f8f', '#c24a2b'];
 
   // state
   const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -402,9 +826,12 @@
 
   // views
   const TITLES = {
+    goal: ['$1M Goal', 'Are you there yet?'],
     holdings: ['Holdings', 'Your portfolio at a glance'],
     predict: ['Ranges', 'Calibrated price ranges for any ticker'],
+    watch: ['Keep an eye on', 'Stocks you are watching, not owning'],
     dividends: ['High dividend ETFs', 'Your list, checked live'],
+    learn: ['Learn', 'Investing basics in plain language'],
   };
   function showView(name) {
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + name));
@@ -649,6 +1076,7 @@
     $('pTicker').textContent = t;
     $('pName').textContent = 'Loading...';
     loadRanges(t);
+    loadNews(t);
     try {
       const hist = await api(`/history?ticker=${encodeURIComponent(t)}&period=${$('period').value}`);
       if (selected === t) renderChart(hist);
@@ -717,6 +1145,52 @@
     }).join('') + `<div class="hint" style="margin-top:14px">Tested walk forward on 93 large US stocks and ETFs that still trade today, so real misses are likely somewhat worse. Not financial advice.</div>`;
   }
 
+  // recent news: Yahoo headlines shown for context only
+  const newsCache = {};  // ticker -> {at, items}
+  function ago(iso) {
+    if (!iso) return '';
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (isNaN(mins)) return '';
+    if (mins < 60) return `${Math.max(mins, 1)} min ago`;
+    if (mins < 48 * 60) return `${Math.round(mins / 60)} h ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  async function loadNews(t) {
+    $('newsBody').className = 'empty';
+    $('newsBody').textContent = 'Loading news...';
+    try {
+      const hit = newsCache[t];
+      let items;
+      if (hit && Date.now() - hit.at < 15 * 60 * 1000) items = hit.items;
+      else {
+        items = (await api(`/news?ticker=${encodeURIComponent(t)}&limit=10`)).items;
+        newsCache[t] = { at: Date.now(), items };
+      }
+      if (selected === t) renderNews(items);
+    } catch (e) {
+      if (selected === t) $('newsBody').textContent = e.message;
+    }
+  }
+
+  function renderNews(items) {
+    if (!items.length) {
+      $('newsBody').className = 'empty';
+      $('newsBody').textContent = 'Yahoo has no recent headlines for this ticker.';
+      return;
+    }
+    $('newsBody').className = '';
+    $('newsBody').innerHTML = '<ul class="news">' + items.map(a => {
+      const safe = /^https?:\/\//.test(a.url) ? a.url : '#';
+      const meta = [a.publisher, ago(a.published)].filter(Boolean).map(esc).join(' · ');
+      return `<li>
+        <a href="${esc(safe)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
+        <div class="meta">${meta}</div>
+        ${a.summary ? `<div class="sum">${esc(a.summary)}</div>` : ''}
+      </li>`;
+    }).join('') + '</ul>';
+  }
+
   function renderChart(hist) {
     if (chart) chart.destroy();
     chart = new Chart($('chart'), {
@@ -726,8 +1200,8 @@
         datasets: [{
           label: 'Close',
           data: hist.prices,
-          borderColor: '#efeae1',
-          backgroundColor: 'rgba(239, 234, 225, 0.08)',
+          borderColor: '#0297DE',
+          backgroundColor: 'rgba(2, 151, 222, 0.12)',
           fill: true,
           pointRadius: 0,
           tension: 0.25,
@@ -796,17 +1270,713 @@
     loadDividends();
   }
 
+  // watchlist: stocks you are keeping an eye on, saved in this browser.
+  // Each item is {ticker, addedAt, startPrice, note, above, below, range}
+  // where range is the 3 month 80% range captured when you started watching.
+  let watch = load('watch_v1', []);
+  const quotes = {};  // ticker -> {at, price, prev, closes} or {error}
+  const wNews = {};   // ticker -> latest headline or null
+  const RANGE_MAX_AGE_DAYS = 92;
+
+  const saveWatch = () => save('watch_v1', watch);
+  const findWatch = t => watch.find(w => w.ticker === t);
+
+  async function snapshotRange(w) {
+    try {
+      const r = await predict(w.ticker);
+      const h = r.horizons[0];
+      const r80 = h.ranges.find(x => x.level === 80);
+      w.range = { low: r80.low_price, high: r80.high_price, median: h.median_price, asOf: r.as_of, horizon: h.horizon };
+      if (!w.startPrice) w.startPrice = r.current_price;
+    } catch (e) {
+      w.range = { error: e.message };
+    }
+    saveWatch();
+  }
+
+  async function loadQuote(t, force) {
+    const hit = quotes[t];
+    if (!force && hit && !hit.error && Date.now() - hit.at < 5 * 60 * 1000) return;
+    try {
+      const h = await api(`/history?ticker=${encodeURIComponent(t)}&period=1mo`);
+      const closes = h.prices;
+      if (!closes.length) throw new Error('No prices from Yahoo');
+      quotes[t] = { at: Date.now(), price: closes[closes.length - 1], prev: closes.length > 1 ? closes[closes.length - 2] : null, closes };
+    } catch (e) {
+      quotes[t] = { error: e.message };
+    }
+  }
+
+  async function loadWatchNews(t) {
+    if (t in wNews) return;
+    try {
+      const n = await api(`/news?ticker=${encodeURIComponent(t)}&limit=3`);
+      wNews[t] = n.items[0] || null;
+    } catch (e) {
+      wNews[t] = null;
+    }
+  }
+
+  // alert pop-ups: shown once when the price crosses an alert, again only after it crosses back
+  const TOAST_SECONDS = 20;
+  function toast(title, msg, opts = {}) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (opts.down ? ' fall' : '');
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<button class="tx" aria-label="Dismiss">✕</button><div class="tt">${esc(title)}</div><div class="tm">${esc(msg)}</div>`
+      + (opts.ticker ? `<button class="btn ghost" type="button" data-open="${esc(opts.ticker)}">Open ${esc(opts.ticker)}</button>` : '');
+    const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    el.querySelector('.tx').addEventListener('click', close);
+    el.addEventListener('click', e => { if (e.target.closest('[data-open]')) close(); });
+    $('toasts').prepend(el);
+    while ($('toasts').children.length > 4) $('toasts').lastElementChild.remove();
+    setTimeout(close, TOAST_SECONDS * 1000);
+    // also a system notification when this tab is in the background, if allowed
+    try {
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        const n = new Notification(title, { body: msg, tag: 'watch-' + (opts.ticker || title) });
+        n.onclick = () => { window.focus(); if (opts.ticker) openPredict(opts.ticker); n.close(); };
+      }
+    } catch (e) {}
+  }
+
+  function checkAlerts(w) {
+    const q = quotes[w.ticker];
+    if (!q || q.error) return;
+    const p = q.price;
+    w.alertState = w.alertState || {};
+    let changed = false;
+    for (const side of ['above', 'below']) {
+      const level = w[side];
+      const hit = level != null && (side === 'above' ? p >= level : p <= level);
+      if (hit && !w.alertState[side]) {
+        const verb = side === 'above' ? 'rose to' : 'fell to';
+        toast(`${w.ticker} ${verb} ${money(p)}`, `That is ${side} your ${money(level)} alert.`, { ticker: w.ticker, down: side === 'below' });
+      }
+      if (!!w.alertState[side] !== hit) { w.alertState[side] = hit; changed = true; }
+    }
+    if (changed) saveWatch();
+  }
+
+  // automatic price checks: every minute while the US market is open, every 30 minutes otherwise
+  let lastWatchUpdate = null, watchTimer = null;
+  function marketOpen(now = new Date()) {
+    const et = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' })
+      .formatToParts(now).reduce((o, x) => (o[x.type] = x.value, o), {});
+    const mins = Number(et.hour) * 60 + Number(et.minute);
+    return !['Sat', 'Sun'].includes(et.weekday) && mins >= 570 && mins < 960;
+  }
+  const pollMinutes = () => marketOpen() ? 1 : 30;
+  function scheduleWatchPoll() {
+    clearTimeout(watchTimer);
+    watchTimer = setTimeout(async () => {
+      if (watch.length) await loadWatchAll(true);
+      scheduleWatchPoll();
+    }, pollMinutes() * 60 * 1000);
+  }
+
+  async function loadWatchOne(w, force) {
+    const jobs = [loadQuote(w.ticker, force), loadWatchNews(w.ticker)];
+    const old = w.range && w.range.asOf && (Date.now() - new Date(w.range.asOf).getTime()) / 864e5 > RANGE_MAX_AGE_DAYS;
+    if (!w.range || w.range.error || old) jobs.push(snapshotRange(w));
+    await Promise.all(jobs);
+    if (!w.startPrice && quotes[w.ticker] && !quotes[w.ticker].error) { w.startPrice = quotes[w.ticker].price; saveWatch(); }
+    checkAlerts(w);
+    if (quotes[w.ticker] && !quotes[w.ticker].error) lastWatchUpdate = new Date();
+    renderWatch();
+  }
+
+  async function loadWatchAll(force) {
+    renderWatch();
+    // a few at a time so Yahoo does not rate limit the page
+    const queue = watch.slice();
+    const worker = async () => { while (queue.length) await loadWatchOne(queue.shift(), force); };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  function addWatch(t, note) {
+    t = clean(t);
+    if (!t) return false;
+    const w = findWatch(t);
+    if (w) { if (note) { w.note = note; saveWatch(); } }
+    else watch = [{ ticker: t, addedAt: new Date().toISOString(), startPrice: null, note: note || '', above: null, below: null, range: null }].concat(watch);
+    saveWatch();
+    loadWatchOne(findWatch(t));
+    return true;
+  }
+
+  function removeWatch(t) {
+    watch = watch.filter(w => w.ticker !== t);
+    saveWatch();
+    renderWatch();
+    if (ideasData) renderIdeas();
+  }
+
+  function rangeStatus(p, r) {
+    if (!r || r.error || p == null) return null;
+    const band = r.high - r.low || 1;
+    const where = (p - r.low) / band;
+    if (p > r.high) return { text: `Above its 80% range by ${fmt((p / r.high - 1) * 100, 1)}%`, cls: 'up', flag: true };
+    if (p < r.low) return { text: `Below its 80% range by ${fmt((1 - p / r.low) * 100, 1)}%`, cls: 'down', flag: true };
+    if (where >= 0.9) return { text: 'Near the top of its 80% range', cls: 'up', flag: false };
+    if (where <= 0.1) return { text: 'Near the bottom of its 80% range', cls: 'down', flag: false };
+    return { text: 'Inside its 80% range', cls: '', flag: false };
+  }
+
+  function alertHits(w, p) {
+    if (p == null) return [];
+    const out = [];
+    if (w.above != null && p >= w.above) out.push(`at or above ${money(w.above)}`);
+    if (w.below != null && p <= w.below) out.push(`at or below ${money(w.below)}`);
+    return out;
+  }
+
+  function sparkline(closes) {
+    if (!closes || closes.length < 2) return '';
+    const lo = Math.min(...closes), hi = Math.max(...closes), W = 120, H = 44, pad = 3;
+    const pts = closes.map((c, i) => `${(i / (closes.length - 1) * W).toFixed(1)},${(H - pad - (c - lo) / (hi - lo || 1) * (H - 2 * pad)).toFixed(1)}`).join(' ');
+    const color = closes[closes.length - 1] >= closes[0] ? 'var(--blue)' : 'var(--orange)';
+    return `<svg class="wspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="1 month price trend"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+
+  function watchCard(w) {
+    const q = quotes[w.ticker];
+    const p = q && !q.error ? q.price : null;
+    const chg = p != null && q.prev ? p - q.prev : null;
+    const chgPct = chg != null ? chg / q.prev * 100 : null;
+    const since = p != null && w.startPrice ? (p / w.startPrice - 1) * 100 : null;
+    const st = rangeStatus(p, w.range);
+    const hits = alertHits(w, p);
+    const t = esc(w.ticker);
+
+    let meter = '<div class="hint">Range loading...</div>';
+    if (w.range && w.range.error) meter = `<div class="hint">No range: ${esc(w.range.error)}</div>`;
+    else if (w.range && p != null) {
+      const r = w.range;
+      const lo = Math.min(r.low, p, w.startPrice || p) * 0.97, hi = Math.max(r.high, p, w.startPrice || p) * 1.03;
+      const pos = v => ((v - lo) / (hi - lo || 1) * 100).toFixed(2) + '%';
+      meter = `
+        <div class="wmeter" role="img" aria-label="Price ${money(p)}, 80% range ${money(r.low)} to ${money(r.high)}">
+          <div class="in" style="left:${pos(r.low)};width:calc(${pos(r.high)} - ${pos(r.low)})"></div>
+          ${w.startPrice ? `<div class="start" style="left:${pos(w.startPrice)}" title="Price when you started watching"></div>` : ''}
+          <div class="dot" style="left:${pos(p)}"></div>
+        </div>
+        <div class="wmeter-axis"><span>${money(r.low)}</span><span>${money(r.high)}</span></div>
+        <div class="wstatus ${st ? st.cls : ''}">${st ? esc(st.text) : ''}</div>
+        <div class="hint" style="font-size:12px">${esc(r.horizon)} 80% range as of ${esc(r.asOf)}. Dashed line is where it was when you started watching.</div>`;
+    }
+
+    const n = wNews[w.ticker];
+    const news = n === undefined ? '<div class="hint">Loading headline...</div>'
+      : n === null ? '<div class="hint">No recent headline.</div>'
+      : `<a href="${esc(/^https?:\/\//.test(n.url) ? n.url : '#')}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a><div class="hint" style="font-size:12px">${[n.publisher, ago(n.published)].filter(Boolean).map(esc).join(' · ')}</div>`;
+
+    return `
+    <div class="card wcard ${hits.length ? 'hit' : ''}">
+      <div class="whead">
+        <div>
+          <button class="wtick" data-open="${t}" title="Open ranges">${t}</button>
+          <div class="wprice">${q && q.error ? '<span class="hint" style="font-size:14px">' + esc(q.error) + '</span>' : money(p)}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            ${chg != null ? `<span class="pill ${cls(chg)}">${chg >= 0 ? '+' : '-'}${money(Math.abs(chg))} (${pct(chgPct)}) today</span>` : ''}
+            ${since != null ? `<span class="pill ${cls(since)}">${pct(since)} since watching</span>` : ''}
+          </div>
+        </div>
+        ${q && q.closes ? sparkline(q.closes) : ''}
+      </div>
+      ${hits.length ? `<div class="pill" style="color:var(--orange);border-color:rgba(252,115,77,0.5);align-self:flex-start">Alert: price is ${hits.map(esc).join(' and ')}</div>` : ''}
+      <div>${meter}</div>
+      <div>
+        <div class="wlabel">Price alerts</div>
+        <div class="walerts">
+          <label>Tell me above
+            <input type="number" step="any" min="0" placeholder="$" data-wfield="above" data-wt="${t}" value="${w.above ?? ''}" class="${w.above != null && p != null && p >= w.above ? 'hitbox' : ''}">
+          </label>
+          <label>Tell me below
+            <input type="number" step="any" min="0" placeholder="$" data-wfield="below" data-wt="${t}" value="${w.below ?? ''}" class="${w.below != null && p != null && p <= w.below ? 'hitbox' : ''}">
+          </label>
+        </div>
+      </div>
+      <div class="wnews"><div class="wlabel">Latest headline</div>${news}</div>
+      <div>
+        <div class="wlabel">Your note</div>
+        <textarea class="wnote" maxlength="300" placeholder="Why you are watching it, what would make you buy" data-wfield="note" data-wt="${t}">${esc(w.note || '')}</textarea>
+      </div>
+      <div class="wfoot">
+        <span class="hint" style="font-size:12px">Watching since ${new Date(w.addedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${w.startPrice ? ' at ' + money(w.startPrice) : ''}</span>
+        <span style="display:flex;gap:8px">
+          <button class="btn ghost" type="button" data-open="${t}">Ranges</button>
+          <button class="btn ghost" type="button" data-unwatch-stock="${t}">Stop watching</button>
+        </span>
+      </div>
+    </div>`;
+  }
+
+  function renderWatch() {
+    const list = $('watchList');
+    // keep focus and typing intact while a note or alert box is being edited
+    const active = document.activeElement;
+    if (active && active.dataset && active.dataset.wfield && list.contains(active)) { renderWatchSummary(); return; }
+    list.innerHTML = watch.map(watchCard).join('');
+    renderWatchSummary();
+  }
+
+  function renderWatchSummary() {
+    if (!watch.length) {
+      $('wStatus').textContent = 'Add a ticker to start watching it.';
+      $('wSummary').innerHTML = '';
+      $('watchList').innerHTML = '<div class="card empty" style="grid-column:1/-1">Nothing on your watchlist yet. Add a ticker above, or use "Keep an eye on it" on the Ranges tab.</div>';
+      return;
+    }
+    let alerts = 0, outside = 0, loaded = 0;
+    for (const w of watch) {
+      const q = quotes[w.ticker];
+      const p = q && !q.error ? q.price : null;
+      if (p != null) loaded++;
+      if (alertHits(w, p).length) alerts++;
+      const st = rangeStatus(p, w.range);
+      if (st && st.flag) outside++;
+    }
+    const when = lastWatchUpdate ? lastWatchUpdate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null;
+    const cadence = marketOpen() ? 'every minute while the market is open' : 'every 30 minutes while the market is closed';
+    $('wStatus').textContent = loaded < watch.length ? `Loading prices, ${loaded} of ${watch.length}...`
+      : `Watching ${watch.length} stock${watch.length === 1 ? '' : 's'}. Prices updated ${when || '—'}, checked ${cadence}. Yahoo prices can lag a few minutes.`;
+    $('wSummary').innerHTML = [
+      `<span class="pill">${watch.length} watching</span>`,
+      `<span class="pill" ${alerts ? 'style="color:var(--orange);border-color:rgba(252,115,77,0.5)"' : ''}>${alerts} alert${alerts === 1 ? '' : 's'} hit</span>`,
+      `<span class="pill">${outside} outside their range</span>`,
+    ].join('');
+  }
+
+  $('watchList').addEventListener('change', e => {
+    const el = e.target, f = el.dataset.wfield, w = el.dataset.wt && findWatch(el.dataset.wt);
+    if (!f || !w) return;
+    if (f === 'note') w.note = el.value.slice(0, 300);
+    else {
+      const v = el.value.trim() === '' ? null : Number(el.value);
+      w[f] = v != null && v > 0 ? v : null;
+      if (w.alertState) w.alertState[f] = false;  // a new level gets a fresh pop-up
+      checkAlerts(w);
+    }
+    saveWatch();
+    el.blur();
+    renderWatch();
+  });
+
+  $('watchForm').addEventListener('submit', e => {
+    e.preventDefault();
+    if (addWatch($('wTicker').value, $('wNote').value.trim())) { $('wTicker').value = ''; $('wNote').value = ''; }
+  });
+  $('wRefresh').addEventListener('click', () => loadWatchAll(true));
+  function renderNotifyButton() {
+    const b = $('wNotify');
+    if (!('Notification' in window)) { b.textContent = 'Desktop alerts: not supported'; b.disabled = true; return; }
+    const p = Notification.permission;
+    b.textContent = p === 'granted' ? 'Desktop alerts: on' : p === 'denied' ? 'Desktop alerts: blocked' : 'Desktop alerts: off';
+    b.title = p === 'denied' ? 'Allow notifications for this site in your browser settings' : 'Also show a system notification when this tab is in the background';
+  }
+  $('wNotify').addEventListener('click', async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      try { await Notification.requestPermission(); } catch (e) {}
+    }
+    renderNotifyButton();
+    if ('Notification' in window && Notification.permission === 'granted') toast('Desktop alerts are on', 'You will also get a system notification when this tab is in the background.');
+  });
+  renderNotifyButton();
+  $('pWatch').addEventListener('click', () => {
+    if (addWatch(selected, '')) {
+      $('pWatch').textContent = 'Watching';
+      setTimeout(() => { $('pWatch').textContent = 'Keep an eye on it'; }, 1800);
+    }
+  });
+
+  // ideas worth a look: a rule based screen from /ideas, with each signal's tested record
+  let ideasData = null, ideasAt = 0, ideasLoading = false;
+
+  function signalVerdict(s) {
+    if (s.used === false) {
+      const b = s['252d'];
+      return { cls: 'weak', label: 'Dropped', text: (s.note || 'Not used to pick ideas.')
+        + (b ? ` Tested ${b.from.slice(0, 4)} to ${b.to.slice(0, 4)}: ${b.avg_vs_average_pct > 0 ? '+' : ''}${fmt(b.avg_vs_average_pct, 1)} pts a year vs the average stock over 12 months.` : '') };
+    }
+    if (s.testable === false) return { cls: '', label: 'Not testable', text: `Can't be tested: ${s.why}. Treat as untested.` };
+    const a = s['63d'], b = s['252d'];
+    if (!a || !b) return { cls: '', label: 'Not tested yet', text: 'Run python -m research.signal_backtest on your PC to test it.' };
+    // set before looking at results: positive at 12 months, beat 95% of shuffled picks, ahead in at least half the years
+    const held = b.avg_vs_average_pct > 0 && b.random_as_good_pct < 5 && b.years_ahead_of_average * 2 >= b.years;
+    const yrs = `${a.from.slice(0, 4)} to ${a.to.slice(0, 4)}`;
+    return {
+      cls: held ? 'held' : 'weak', label: held ? 'Held up in testing' : 'No clear edge',
+      text: `${yrs}: picks vs the average stock ${a.avg_vs_average_pct > 0 ? '+' : ''}${fmt(a.avg_vs_average_pct, 1)} pts over 3 months, `
+        + `${b.avg_vs_average_pct > 0 ? '+' : ''}${fmt(b.avg_vs_average_pct, 1)} over 12 months. Ahead in ${b.years_ahead_of_average} of ${b.years} years `
+        + `(worst ${b.worst_year}, ${fmt(b.worst_year_vs_average_pct, 1)}). Shuffled random picks did as well ${fmt(b.random_as_good_pct, 0)}% of the time.`
+        + (held ? ' A modest, lumpy edge: it has bad years, and it does not mean any one pick will go up. Measured on companies that survived, so real results are likely a bit worse.' : ''),
+    };
+  }
+
+  function renderIdeas() {
+    const d = ideasData;
+    $('sigRecord').innerHTML = Object.entries(d.signals).map(([k, s]) => {
+      const v = signalVerdict(s);
+      return `<div class="sbox"><b>${esc(s.label)}</b><span class="verdict ${v.cls}">${esc(v.label)}</span>
+        ${s.rule ? `<div class="txt" style="margin-bottom:6px">Rule: ${esc(s.rule)}.</div>` : ''}<div class="txt">${esc(v.text)}</div></div>`;
+    }).join('');
+    $('iHint').textContent = `A rule based screen of ${d.screened} large US stocks, prices as of ${d.as_of}. Each idea says which rule picked it and why. These are starting points to research, not predictions that a stock will go up.`;
+    $('iFoot').textContent = (d.caveat ? d.caveat + ' ' : '') + 'Ideas are not personalized and are not financial advice.';
+    if (!d.ideas.length) {
+      $('ideasList').innerHTML = '<div class="card empty" style="grid-column:1/-1">No stock passes any rule today.</div>';
+      return;
+    }
+    $('ideasList').innerHTML = d.ideas.map(i => {
+      const t = esc(i.ticker), w = findWatch(i.ticker);
+      return `<div class="card wcard">
+        <div class="whead">
+          <div>
+            <button class="wtick" data-open="${t}" title="Open ranges">${t}</button>
+            <div class="hint">${esc(i.name)}${i.sector ? ' · ' + esc(i.sector) : ''}</div>
+          </div>
+          <div class="wprice" style="font-size:22px">${money(i.price)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${i.reasons.map(r => `<span class="schip">${esc(d.signals[r.signal].label)}</span>`).join('')}</div>
+        <ul class="ireasons">${i.reasons.map(r => `<li>${esc(r.text)}</li>`).join('')}</ul>
+        <div class="wfoot">
+          <span class="hint" style="font-size:12px">${i.reasons.length} of ${d.signals_used || 3} signals</span>
+          <span style="display:flex;gap:8px">
+            <button class="btn ghost" type="button" data-open="${t}">Ranges</button>
+            <button class="btn ghost" type="button" data-watch-idea="${t}" ${w ? 'disabled' : ''}>${w ? 'Watching' : 'Keep an eye on it'}</button>
+          </span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadIdeas() {
+    if (ideasData && Date.now() - ideasAt < 30 * 60 * 1000) { renderIdeas(); return; }
+    if (ideasLoading) return;
+    ideasLoading = true;
+    try {
+      ideasData = await api('/ideas');
+      ideasAt = Date.now();
+      renderIdeas();
+    } catch (e) {
+      $('sigRecord').innerHTML = '';
+      $('ideasList').innerHTML = `<div class="card empty" style="grid-column:1/-1">${esc(e.message)}</div>`;
+    } finally {
+      ideasLoading = false;
+    }
+  }
+
+  // $1M goal: tracker, a banner on every tab, and a daily check in you must finish before using the site
+  const CORE_BELIEFS = [];
+  let goal = load('goal_v1', null) || {
+    target: 1000000, deadline: '2035-01-01', returnPct: 7,
+    statement: 'I will have $1,000,000 by my deadline.',
+    checkins: [],  // {date: 'YYYY-MM-DD', netWorth, action, belief}
+  };
+  const saveGoal = () => save('goal_v1', goal);
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const parseMoney = s => { const n = Number(String(s).replace(/[^0-9.]/g, '')); return isFinite(n) && String(s).trim() !== '' ? n : null; };
+  const m0 = n => n == null || isNaN(n) ? '—' : '$' + fmt(n, 0);
+
+  function goalStats() {
+    const last = goal.checkins[goal.checkins.length - 1];
+    const nw = last ? last.netWorth : null;
+    const end = new Date(goal.deadline + 'T00:00:00');
+    const days = Math.max(0, Math.ceil((end - new Date()) / 864e5));
+    const months = Math.max(1, days / 30.44);
+    const i = goal.returnPct / 100 / 12;
+    let monthly = null;
+    if (nw != null) {
+      const grown = nw * Math.pow(1 + i, months);
+      monthly = i > 0 ? Math.max(0, (goal.target - grown) * i / (Math.pow(1 + i, months) - 1)) : Math.max(0, (goal.target - nw) / months);
+    }
+    // the steady growth path from your first check in to the target on the deadline
+    const first = goal.checkins[0];
+    let pathToday = null, pace = null;
+    if (first && first.netWorth > 0 && nw != null) {
+      const t0 = new Date(first.date + 'T00:00:00'), span = end - t0;
+      const f = span > 0 ? Math.min(1, Math.max(0, (new Date() - t0) / span)) : 1;
+      pathToday = first.netWorth * Math.pow(goal.target / first.netWorth, f);
+      pace = nw - pathToday;
+    }
+    // streak: consecutive days with a check in, ending today or yesterday
+    const dates = new Set(goal.checkins.map(c => c.date));
+    let streak = 0;
+    const d = new Date();
+    if (!dates.has(today())) d.setDate(d.getDate() - 1);
+    while (dates.has(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)) { streak++; d.setDate(d.getDate() - 1); }
+    return { nw, days, months, monthly, pathToday, pace, streak, left: nw == null ? goal.target : Math.max(0, goal.target - nw), pct: nw == null ? 0 : Math.min(100, nw / goal.target * 100) };
+  }
+
+  function taunts(s) {
+    const list = ['Are you at <em>$1,000,000</em> yet?', `<em>${fmt(s.days, 0)}</em> days left. The clock does not care how you feel.`];
+    if (s.monthly != null) list.push(`You need <em>${m0(s.monthly)}</em> a month. What did you do yesterday?`);
+    if (s.nw != null) list.push(`<em>${fmt(s.pct, 1)}%</em> of the way. That means <em>${fmt(100 - s.pct, 1)}%</em> is still missing.`);
+    if (s.pace != null && s.pace < 0) list.push(`You are <em>${m0(-s.pace)}</em> behind the pace. Still comfortable?`);
+    if (s.pace != null && s.pace >= 0) list.push(`Ahead of pace by <em>${m0(s.pace)}</em>. Do not get soft now.`);
+    list.push(`${esc(CORE_BELIEFS[new Date().getDate() % CORE_BELIEFS.length])}. <em>Did today prove it?</em>`);
+    list.push('Still not a millionaire. <em>Interesting.</em>');
+    return list;
+  }
+
+  function renderGoalBar() {
+    const s = goalStats();
+    let bar = $('goalBar');
+    if (!bar) {
+      bar = document.createElement('button');
+      bar.id = 'goalBar'; bar.className = 'goalbar'; bar.type = 'button';
+      bar.addEventListener('click', () => document.querySelector('.nav button[data-view="goal"]').click());
+      document.querySelector('main .top').after(bar);
+    }
+    bar.innerHTML = `<b>${m0(s.left)}</b><span>to go</span><span class="hint">${fmt(s.days, 0)} days left</span>`
+      + (s.monthly != null ? `<span class="hint">${m0(s.monthly)} a month needed</span>` : '')
+      + `<span class="gb-q">Are you at ${m0(goal.target)} yet?</span>`;
+  }
+
+  let goalChart = null;
+  function renderGoal() {
+    const s = goalStats();
+    $('gLeft').textContent = m0(s.left);
+    $('gFill').style.width = s.pct.toFixed(2) + '%';
+    $('gBarWrap').setAttribute('aria-label', `${fmt(s.pct, 1)}% of the goal`);
+    $('gNow').textContent = s.nw == null ? 'No check in yet' : `${m0(s.nw)} (${fmt(s.pct, 1)}%)`;
+    $('gTarget').textContent = m0(goal.target);
+    const t = taunts(s);
+    $('gTaunt').innerHTML = t[Math.floor(Math.random() * t.length)];
+    $('gDays').textContent = fmt(s.days, 0);
+    $('gDeadline').textContent = 'by ' + new Date(goal.deadline + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    $('gMonthly').textContent = m0(s.monthly);
+    $('gMonthlyPill').textContent = `at ${fmt(goal.returnPct, 1)}% a year growth`;
+    $('gPace').textContent = s.pace == null ? '—' : (s.pace >= 0 ? '+' : '-') + m0(Math.abs(s.pace));
+    $('gPace').className = 'value ' + (s.pace == null ? '' : cls(s.pace));
+    $('gPacePill').textContent = s.pace == null ? 'needs two check ins' : s.pace >= 0 ? 'ahead of pace' : 'behind pace';
+    $('gPacePill').className = 'pill ' + (s.pace == null ? '' : cls(s.pace));
+    $('gStreak').textContent = `${s.streak} day${s.streak === 1 ? '' : 's'}`;
+    $('gStreakPill').textContent = s.streak ? 'do not break it' : 'start one today';
+
+    renderGoalLog();
+
+    $('gsTarget').value = goal.target; $('gsDeadline').value = goal.deadline;
+    $('gsReturn').value = goal.returnPct; $('gsStatement').value = goal.statement;
+
+    // chart: one point per day (latest check in that day) against the on time path
+    const byDay = {};
+    goal.checkins.forEach(c => { byDay[c.date] = c.netWorth; });
+    const days = Object.keys(byDay).sort();
+    const enough = days.length >= 2;
+    $('goalChartEmpty').classList.toggle('hidden', enough);
+    $('goalChart').style.display = enough ? '' : 'none';
+    if (goalChart) { goalChart.destroy(); goalChart = null; }
+    if (!enough || typeof Chart === 'undefined') return;
+    const first = goal.checkins[0], t0 = new Date(first.date + 'T00:00:00'), end = new Date(goal.deadline + 'T00:00:00');
+    const path = days.map(d => first.netWorth > 0 ? first.netWorth * Math.pow(goal.target / first.netWorth, Math.min(1, (new Date(d + 'T00:00:00') - t0) / (end - t0))) : null);
+    goalChart = new Chart($('goalChart'), {
+      type: 'line',
+      data: { labels: days, datasets: [
+        { label: 'You', data: days.map(d => byDay[d]), borderColor: '#0297DE', backgroundColor: 'rgba(2, 151, 222, 0.12)', fill: true, tension: 0.2, pointRadius: 2 },
+        { label: 'Pace to hit the goal', data: path, borderColor: '#FC734D', borderDash: [6, 5], pointRadius: 0, fill: false },
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#8797a3', boxWidth: 12 } } },
+        scales: { x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } }, y: { ticks: { callback: v => '$' + Number(v).toLocaleString() } } } },
+    });
+  }
+
+  function renderGoalLog() {
+    const q = $('gLogSearch').value.trim().toLowerCase();
+    const all = goal.checkins.slice().reverse();
+    const shown = q ? all.filter(c => c.action.toLowerCase().includes(q) || (c.belief || '').toLowerCase().includes(q)) : all;
+    const days = new Set(goal.checkins.map(c => c.date)).size;
+    $('gLogHint').textContent = all.length ? `${all.length} answer${all.length === 1 ? '' : 's'} over ${days} day${days === 1 ? '' : 's'}, newest first.` : 'Every check in, newest first.';
+    if (!shown.length) {
+      $('gLog').innerHTML = `<div class="empty">${all.length ? 'No answers match that search.' : 'Nothing yet. Your first check in will show here.'}</div>`;
+      return;
+    }
+    let month = '', html = '';
+    for (const c of shown) {
+      const d = new Date(c.date + 'T00:00:00');
+      const m = d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      if (m !== month) { month = m; html += `<div class="glogmonth">${esc(m)}</div>`; }
+      html += `<div class="glog"><div>${esc(c.action)}</div>
+        <div class="hint">${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · net worth ${m0(c.netWorth)}${c.belief ? ' · ' + esc(c.belief) : ''}</div></div>`;
+    }
+    $('gLog').innerHTML = html;
+  }
+  $('gLogSearch').addEventListener('input', renderGoalLog);
+
+  // the log is also saved to a file on this computer (goal_data/checkins.jsonl), so it survives clearing the browser
+  const ckey = c => c.date + '|' + c.action.trim().replace(/\s+/g, ' ');
+  let goalSynced = null;
+  async function syncGoalLog() {
+    try {
+      const server = (await api('/goal/checkins')).checkins;
+      const have = new Set(goal.checkins.map(ckey));
+      const fromServer = server.filter(c => !have.has(ckey(c)));
+      const onServer = new Set(server.map(ckey));
+      const missing = goal.checkins.filter(c => c.netWorth != null && c.action && !onServer.has(ckey(c)));
+      if (missing.length) {
+        const r = await fetch('/goal/checkins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(missing) });
+        if (!r.ok) throw new Error('save failed');
+      }
+      if (fromServer.length) {
+        goal.checkins = goal.checkins.concat(fromServer).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+        saveGoal();
+      }
+      goalSynced = true;
+    } catch (e) {
+      goalSynced = false;
+    }
+    $('gSync').textContent = goalSynced ? 'Saved on this computer in goal_data/checkins.jsonl, so clearing the browser will not lose it.'
+      : 'Could not reach the server to save the log to a file. It is kept in this browser and will be saved next time.';
+    renderGoalBar();
+    if (!$('view-goal').classList.contains('hidden')) renderGoal();
+  }
+
+  ['gsTarget', 'gsDeadline', 'gsReturn', 'gsStatement'].forEach(id => $(id).addEventListener('change', () => {
+    const tgt = parseMoney($('gsTarget').value), r = Number($('gsReturn').value);
+    if (tgt > 0) goal.target = tgt;
+    if ($('gsDeadline').value) goal.deadline = $('gsDeadline').value;
+    if (r >= 0 && r <= 20) goal.returnPct = r;
+    if ($('gsStatement').value.trim().length >= 10) goal.statement = $('gsStatement').value.trim();
+    saveGoal(); renderGoal(); renderGoalBar();
+  }));
+
+  // the daily gate: you cannot use the site until all four steps are done
+  function holdingsValue() {
+    let v = 0, any = false;
+    for (const h of holdings) { const d = priced[h.ticker]; if (d && !d.error) { v += h.shares * d.current_price; any = true; } }
+    return any ? v : null;
+  }
+
+  function openGate() {
+    document.body.classList.add('gated');
+    $('gate').classList.remove('hidden');
+    const s = goalStats();
+    const belief = CORE_BELIEFS[Math.floor(Math.random() * CORE_BELIEFS.length)];
+    const entry = { date: today(), netWorth: null, action: '', belief };
+    const dots = n => `<div class="dots">${[1, 2, 3, 4].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
+    const body = $('gateBody');
+    const missed = goal.checkins.length && s.streak === 0;
+
+    const step1 = (msg) => {
+      $('gateStep').textContent = 'Daily check in · step 1 of 4';
+      body.innerHTML = dots(1) + `<h2 class="q" id="gateQ">Are you at <em>${m0(goal.target)}</em> yet?</h2>
+        <p>${missed ? 'You skipped yesterday. The goal did not skip you. ' : ''}${fmt(s.days, 0)} days left${s.monthly != null ? `, and you need ${m0(s.monthly)} a month` : ''}.</p>
+        <div class="row"><button class="btn" id="gNo">No, not yet</button><button class="btn ghost" id="gYes">Yes</button></div>
+        <div class="err">${msg || ''}</div>`;
+      $('gNo').onclick = () => step2(false);
+      $('gYes').onclick = () => step2(true);
+    };
+
+    const step2 = (claimed) => {
+      $('gateStep').textContent = 'Daily check in · step 2 of 4';
+      const hv = holdingsValue();
+      body.innerHTML = dots(2) + `<h2 class="q">${claimed ? 'Prove it.' : 'Then how far are you?'}</h2>
+        <p>Type your total net worth today: everything you own minus everything you owe.${hv != null ? ` Your stocks on this site are worth ${m0(hv)}.` : ''}</p>
+        <input id="gNw" inputmode="decimal" placeholder="$" autocomplete="off" value="${s.nw != null ? Math.round(s.nw) : ''}">
+        <div class="row" style="margin-top:12px"><button class="btn" id="gNext2">Next</button></div><div class="err" id="gErr2"></div>`;
+      $('gNw').focus();
+      const go = () => {
+        const n = parseMoney($('gNw').value);
+        if (n == null) { $('gErr2').textContent = 'A number. Not a feeling.'; return; }
+        entry.netWorth = n;
+        if (claimed && n < goal.target) { step1(`You said yes. You typed ${m0(n)}. Nice try.`); return; }
+        step3();
+      };
+      $('gNext2').onclick = go;
+      $('gNw').onkeydown = e => { if (e.key === 'Enter') go(); };
+    };
+
+    const step3 = () => {
+      $('gateStep').textContent = 'Daily check in · step 3 of 4';
+      body.innerHTML = dots(3) + `<h2 class="q">Say it. <em>Exactly.</em></h2>
+        <p>Type your goal word for word. Pasting is turned off.</p>
+        <div class="typed">${esc(goal.statement)}</div>
+        <input id="gStmt" autocomplete="off" spellcheck="false">
+        <div class="row" style="margin-top:12px"><button class="btn" id="gNext3">Next</button></div><div class="err" id="gErr3"></div>`;
+      const inp = $('gStmt');
+      ['paste', 'drop'].forEach(ev => inp.addEventListener(ev, e => { e.preventDefault(); $('gErr3').textContent = 'No shortcuts. Type it.'; }));
+      inp.focus();
+      const norm = x => x.trim().replace(/\s+/g, ' ').toLowerCase();
+      const go = () => {
+        if (norm(inp.value) !== norm(goal.statement)) { $('gErr3').textContent = 'Not exact. Again.'; inp.select(); return; }
+        step4();
+      };
+      $('gNext3').onclick = go;
+      inp.onkeydown = e => { if (e.key === 'Enter') go(); };
+    };
+
+    const step4 = () => {
+      $('gateStep').textContent = 'Daily check in · step 4 of 4';
+      const last = goal.checkins[goal.checkins.length - 1];
+      body.innerHTML = dots(4) + `<h2 class="q">What will you do <em>today</em>?</h2>
+        <p>One concrete thing that moves the number. Today's belief: <b style="color:var(--ink)">${esc(belief)}</b>.${last && last.action ? ` Last time you said: "${esc(last.action)}". Did you?` : ''}</p>
+        <textarea id="gAct" maxlength="300" placeholder="Call two sellers about the duplex, move $500 to the brokerage..."></textarea>
+        <div class="row" style="margin-top:12px"><button class="btn" id="gDone">Lock it in</button></div><div class="err" id="gErr4"></div>`;
+      $('gAct').focus();
+      $('gDone').onclick = () => {
+        const a = $('gAct').value.trim();
+        if (a.length < 15) { $('gErr4').textContent = 'Too short to mean anything. Be specific.'; return; }
+        entry.action = a;
+        goal.checkins.push(entry);
+        save('goal_lastGate', today());
+        saveGoal();
+        syncGoalLog();
+        closeGate();
+        renderGoalBar();
+        if (!$('view-goal').classList.contains('hidden')) renderGoal();
+        const ns = goalStats();
+        toast(`Day ${ns.streak} locked in`, `${m0(ns.left)} to go. Now go do it.`);
+      };
+    };
+
+    step1();
+  }
+
+  function closeGate() {
+    $('gate').classList.add('hidden');
+    document.body.classList.remove('gated');
+  }
+
+  $('gAgain').addEventListener('click', openGate);
+
+  // the tab title nags you when you switch away
+  const baseTitle = document.title;
+  document.addEventListener('visibilitychange', () => {
+    document.title = document.hidden ? `Are you at ${m0(goal.target)} yet?` : baseTitle;
+  });
+  // a new day while the page stays open brings the gate back
+  setInterval(() => { if (load('goal_lastGate', '') !== today() && $('gate').classList.contains('hidden')) openGate(); }, 60 * 1000);
+
   // events
   document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.view;
     if (v === 'predict') openPredict(selected);
     else if (v === 'holdings') { showView(v); renderPortfolio(); }
     else if (v === 'dividends') { showView(v); loadDividends(); }
+    else if (v === 'learn') showView(v);
+    else if (v === 'goal') { showView(v); renderGoal(); }
+    else if (v === 'watch') { showView(v); loadWatchAll(false); loadIdeas(); }
+  }));
+
+  // learn: buttons inside lessons jump to another tab, chips open the lesson they point at
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => {
+    document.querySelector(`.nav button[data-view="${b.dataset.goto}"]`).click();
+  }));
+  document.querySelectorAll('.learn-intro a.chip').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    const el = document.querySelector(a.getAttribute('href'));
+    const d = el.tagName === 'DETAILS' ? el : el.nextElementSibling;
+    if (d && d.tagName === 'DETAILS') d.open = true;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
 
   document.addEventListener('click', e => {
     const rm = e.target.closest('[data-remove]');
     if (rm) { removeHolding(rm.dataset.remove); return; }
+    const wi = e.target.closest('[data-watch-idea]');
+    if (wi) { addWatch(wi.dataset.watchIdea, 'From ideas: ' + (ideasData?.ideas.find(i => i.ticker === wi.dataset.watchIdea)?.reasons.map(r => ideasData.signals[r.signal].label).join(', ') || '')); if (ideasData) renderIdeas(); return; }
+    const us = e.target.closest('[data-unwatch-stock]');
+    if (us) { removeWatch(us.dataset.unwatchStock); return; }
     const uw = e.target.closest('[data-unwatch]');
     if (uw) { unwatchEtf(uw.dataset.unwatch); return; }
     const op = e.target.closest('[data-open]');
@@ -847,9 +2017,15 @@
 
   $('quick').innerHTML = POPULAR.map(([t, n]) => `<button class="chip" data-open="${t}">${t} · ${esc(n)}</button>`).join('');
 
-  // start on holdings
+  // start on holdings; watchlist prices and alerts are checked in the background on every tab
+  renderGoalBar();
+  syncGoalLog();
+  if (load('goal_lastGate', '') !== today()) openGate();
   renderPortfolio();
   refreshAllHoldings();
+  if (watch.length) loadWatchAll(false);
+  scheduleWatchPoll();
 </script>
+
 </body>
 </html>

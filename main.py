@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -11,6 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 from data import fetch_stock_data
 from ranges import ranges_for_ticker
 from portfolio import portfolio_ranges
+from news import news_for_ticker
+import ideas as ideas_mod
+import goal_log
 
 app = FastAPI(
     title="Stock Predictor API",
@@ -97,6 +100,19 @@ class PortfolioRangesResponse(BaseModel):
     horizons: list[PortfolioHorizon]
     method: str
 
+class NewsItem(BaseModel):
+    title: str
+    publisher: str
+    url: str
+    published: Optional[str]
+    summary: Optional[str]
+
+class NewsResponse(BaseModel):
+    ticker: str
+    items: list[NewsItem]
+    source: str
+    note: str
+
 class HistoryResponse(BaseModel):
     ticker: str
     dates: list[str]
@@ -159,6 +175,68 @@ def get_portfolio_ranges(request: PortfolioRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Portfolio ranges failed: {str(e)}")
+
+
+@app.get("/news", response_model=NewsResponse)
+def get_news(ticker: str, limit: int = 10):
+    """
+    Latest Yahoo Finance headlines for a ticker, newest first. Context only:
+    the headlines do not change the ranges.
+    """
+    try:
+        items = news_for_ticker(ticker, limit)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"News unavailable: {str(e)}")
+    return {
+        "ticker": ticker.upper().strip(),
+        "items": items,
+        "source": "Yahoo Finance",
+        "note": "Headlines are shown for context and do not change the ranges.",
+    }
+
+
+@app.get("/ideas")
+def get_ideas():
+    """
+    Ideas worth a look: a rule based screen of the stocks in research/universe.py
+    using momentum, pullback in uptrend, analyst targets, and value and growth.
+    Each idea lists why it was picked, and each signal carries its walk forward
+    record when it can be tested. Ideas to research, not predictions.
+    """
+    try:
+        return ideas_mod.ideas()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ideas unavailable: {str(e)}")
+
+
+@app.get("/goal/checkins")
+def get_goal_checkins():
+    """Every daily $1M check in saved on this computer, oldest first."""
+    entries = goal_log.read_all()
+    return {"count": len(entries), "checkins": entries}
+
+
+@app.post("/goal/checkins")
+def add_goal_checkins(entries: list[dict]):
+    """Save check ins. Ones already saved (same date and same words) are skipped."""
+    if len(entries) > 5000:
+        raise HTTPException(status_code=400, detail="Too many check ins at once.")
+    try:
+        return goal_log.append(entries)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/goal/checkins.csv")
+def download_goal_checkins():
+    """The full check in log as a spreadsheet file."""
+    return Response(
+        content=goal_log.to_csv(goal_log.read_all()),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="million-goal-checkins.csv"'},
+    )
 
 
 @app.get("/history", response_model=HistoryResponse)

@@ -11,3 +11,6 @@ data_long_cache/
 models/
 *.pkl
 reports/
+
+# daily $1M check ins (net worth), kept only on this computer
+goal_data/

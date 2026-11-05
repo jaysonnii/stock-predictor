@@ -1,6 +1,6 @@
 # Research
 
-The experiments behind the dashboard, kept as a record of what was tested and what it showed. Nothing in this folder is used by the app except as the source of the fixed settings in `ranges.py` and `portfolio.py`.
+The experiments behind the dashboard, kept as a record of what was tested and what it showed. Nothing in this folder is used by the app except as the source of the fixed settings in `ranges.py` and `portfolio.py`, and `universe.py`, which is also the stock list for the ideas screen.
 
 Every test here is walk forward: each forecast uses only data available on its date and is scored against what happened next. Numbers are percentage points unless noted.
 
@@ -54,6 +54,18 @@ At 252 days, misses fall mostly below the range when a downturn starts from calm
 | `evaluate_portfolio.py` | 40 fixed random equal-weight portfolios of 6 tickers. Joint draws (every holding gets the same historical blocks) vs independent draws | Joint: 82.3 / 82.2 / 85.8, worst years 68 / 72 / 66. Independent: 66.2 / 67.3 / 70.3, worst years 46 / 59 / 45 |
 
 Ignoring how stocks move together makes portfolio ranges about 30% too narrow. Small caps outside the universe and concentrated weights were not part of this test.
+
+## 5. Ideas worth a look (signals used by `ideas.py`)
+
+The "Keep an eye on" tab lists ideas from four rules. The two price rules live in `signals.py`, shared by the site and this test, so the site shows exactly what was tested. Settings were fixed before testing.
+
+| Script | What it tested | Result |
+|---|---|---|
+| `signal_backtest.py` | Momentum (top 20% by 12 to 1 month return, above the 200 day average) and pullback in uptrend (above the 200 day average, 50 above 200, last month down at least one normal month). Picks scored every 21 days over 63 and 252 days vs the average stock and SPY. Luck check: 500 runs with picks shuffled across tickers | Run Nov 4, 2026 on 70 stocks, 1994 to 2026. **Momentum held up:** +3.83 pts a year vs the average stock at 252 days (+1.23 at 63), shuffled picks as good 2.4% of the time (0.0% at 63), ahead in 19 of 32 years, worst 2000 (-24.05). **Pullback failed:** -2.04 at 252 days (-0.99 at 63), shuffled picks as good 87.2% (89.8%), ahead in 10 of 32 years. On made-up random prices the luck check gave false alarms in about 5% of runs, as it should |
+
+Decision: momentum stays and is labeled "held up in testing". Pullback no longer picks ideas; its record is still shown as "Dropped". The "vs SPY" numbers (momentum +10.96 at 252 days) are not used: the equal weight average of today's survivors beat SPY by about 7 pts a year on its own, which is survivorship bias, not skill.
+
+A signal is labeled "held up in testing" only when, at 252 days, it beat the average stock, beat 95% of shuffled runs, and was ahead in at least half the years. This rule was set before any real results were seen. Analyst targets and value/growth cannot be tested with yfinance and are labeled untested.
 
 ## Known limits
 
