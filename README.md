@@ -2,7 +2,7 @@
 
 [![Python CI](https://github.com/jaysonnii/stock-predictor/actions/workflows/python-ci.yml/badge.svg)](https://github.com/jaysonnii/stock-predictor/actions/workflows/python-ci.yml)
 
-[Live Demo](https://stockpredictor-nwgu.onrender.com) · [API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
+[API Documentation](https://stockpredictor-nwgu.onrender.com/docs)
 
 ## Live Preview
 
