@@ -5,10 +5,10 @@ Signals, each shown with its reason and, where it can be tested, its
 walk forward record from signal_record.json (written by
 research/signal_backtest.py). These are ideas to research, not predictions.
 
-Pullback in uptrend was tested (Nov 4, 2026) and did worse than the average
-stock (-1.0 pts at 63 days, -2.0 at 252; shuffled random picks did as well
-about 88% of the time), so it no longer picks ideas. Its record is still
-shown so the result stays visible.
+A tested signal picks ideas only while it holds up in the latest test, using
+the rule set before any results were seen (held_up below). A signal that has
+not been tested yet still picks ideas but is labeled untested. Pullback in
+uptrend failed the first test (Nov 4, 2026), so it is shown as dropped.
 """
 import json
 import os
@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from research.universe import _STOCKS
-from signals import SIGNALS, momentum_signal
+from signals import SIGNALS, momentum_signal, pullback_signal
 
 PRICE_CACHE_SECONDS = 6 * 60 * 60
 INFO_CACHE_SECONDS = 24 * 60 * 60
@@ -28,10 +28,24 @@ RECORD_PATH = "signal_record.json"
 INFO_WORKERS = 2
 INFO_DELAY_SECONDS = 0.3
 MAX_IDEAS = 15
-# Signals that can put a stock on the list. Pullback is tested but not used.
-USED_SIGNALS = ("momentum", "analyst", "value")
-DROPPED_NOTE = {"pullback": "Dropped: in testing its picks did worse than the average stock, "
-                            "and random picks did as well about 88% of the time. Not used to pick ideas."}
+TESTED_SIGNALS = ("momentum", "pullback")
+DROPPED_NOTE = "Dropped: it did not hold up in testing, so it no longer picks ideas."
+
+
+def held_up(sig: dict) -> bool:
+    """Set before any results: at 252 days, beat the average stock, beat 95% of shuffled runs, ahead in half the years."""
+    b = (sig or {}).get("252d")
+    return bool(b) and b["avg_vs_average_pct"] > 0 and b["random_as_good_pct"] is not None \
+        and b["random_as_good_pct"] < 5 and b["years_ahead_of_average"] * 2 >= b["years"]
+
+
+def used_signals(record: dict) -> set:
+    sigs = record.get("signals", {})
+    used = set(SIGNALS) - set(TESTED_SIGNALS)
+    for k in TESTED_SIGNALS:
+        if "252d" not in sigs.get(k, {}) or held_up(sigs[k]):
+            used.add(k)
+    return used
 
 # Analyst targets: at least 5 analysts, average rating buy or better (Yahoo's
 # 1 = strong buy to 5 = sell scale, 2.5 or lower), target 15%+ above price.
@@ -181,7 +195,9 @@ def value_reason(info, sector_medians):
 
 
 def build_ideas(close: pd.DataFrame, infos: dict, record: dict) -> dict:
+    used = used_signals(record)
     mom, ret_12_1 = momentum_signal(close)
+    pull, ret_1m, z = pullback_signal(close)
     last = close.index[-1]
     medians = sector_pe_medians(infos)
 
@@ -192,9 +208,12 @@ def build_ideas(close: pd.DataFrame, infos: dict, record: dict) -> dict:
             continue
         info = infos.get(t) or {}
         reasons = []
-        if bool(mom.loc[last, t]):
+        if "momentum" in used and bool(mom.loc[last, t]):
             reasons.append({"signal": "momentum", "text": f"Up {ret_12_1.loc[last, t] * 100:.0f}% from 12 months to 1 month ago, "
                                                           f"top 20% of the group, and above its 200 day average"})
+        if "pullback" in used and bool(pull.loc[last, t]):
+            reasons.append({"signal": "pullback", "text": f"Down {abs(ret_1m.loc[last, t]) * 100:.1f}% over the last month, "
+                                                          f"{abs(z.loc[last, t]):.1f}x a normal month for it, while its long term trend is still up"})
         a = analyst_reason(info, price)
         if a:
             reasons.append({"signal": "analyst", **a})
@@ -215,10 +234,11 @@ def build_ideas(close: pd.DataFrame, infos: dict, record: dict) -> dict:
         "as_of": str(last.date()),
         "screened": int(close.shape[1]),
         "ideas": ideas[:MAX_IDEAS],
-        "signals": {k: {"label": label, "rule": RULES[k], "used": k in USED_SIGNALS,
-                        **({"note": DROPPED_NOTE[k]} if k in DROPPED_NOTE else {}), **signals.get(k, {})}
+        "signals": {k: {"label": label, "rule": RULES[k], "used": k in used,
+                        **({} if k in used else {"note": DROPPED_NOTE}), **signals.get(k, {})}
                     for k, label in SIGNALS.items()},
-        "signals_used": len(USED_SIGNALS),
+        "signals_used": len(used),
+        "test_mode": record.get("mode", "survivors"),
         "tested_on": record.get("tested_on"),
         "caveat": record.get("caveat"),
     }

@@ -84,17 +84,41 @@ def test_build_ideas_ranks_by_number_of_reasons():
     assert out["signals"]["momentum"]["63d"]["avg_vs_average_pct"] == 1.2
     assert out["signals"]["analyst"]["label"] == "Analyst targets"
     assert out["screened"] == 5
-    assert out["signals"]["pullback"]["used"] is False and "Dropped" in out["signals"]["pullback"]["note"]
-    assert out["signals"]["momentum"]["used"] is True and out["signals_used"] == 3
+    assert out["signals"]["momentum"]["used"] is True and out["signals_used"] == 4
 
 
-def test_pullback_no_longer_picks_ideas():
+def _rec(avg, luck, ahead, years=32):
+    return {"252d": {"avg_vs_average_pct": avg, "random_as_good_pct": luck, "years_ahead_of_average": ahead, "years": years}}
+
+
+def test_held_up_rule():
+    assert ideas.held_up(_rec(3.8, 2.4, 19))
+    assert not ideas.held_up(_rec(-2.0, 87.0, 10))   # lost to the average stock
+    assert not ideas.held_up(_rec(1.0, 12.0, 20))    # could be luck
+    assert not ideas.held_up(_rec(1.0, 1.0, 15))     # ahead in under half the years
+    assert not ideas.held_up({})
+
+
+def test_failed_signal_stops_picking_and_untested_one_still_picks():
     up = _trend(0.002, noise=0.005, seed=2)
     up[-21:] = up[-22] * np.exp(np.cumsum(np.full(21, -0.003)))  # a dip that the pullback rule catches
     close = _wide(DIP=up)
     assert bool(signals.pullback_signal(close)[0].iloc[-1]["DIP"])
-    out = ideas.build_ideas(close, {}, {})
+    failed = {"mode": "point_in_time", "signals": {"pullback": _rec(-2.0, 87.0, 10), "momentum": _rec(3.8, 2.4, 19)}}
+    out = ideas.build_ideas(close, {}, failed)
     assert all(r["signal"] != "pullback" for i in out["ideas"] for r in i["reasons"])
+    assert out["signals"]["pullback"]["used"] is False and "Dropped" in out["signals"]["pullback"]["note"]
+    assert out["test_mode"] == "point_in_time"
+    untested = ideas.build_ideas(close, {}, {})
+    assert any(r["signal"] == "pullback" for i in untested["ideas"] for r in i["reasons"])
+
+
+def test_momentum_ranks_only_among_eligible():
+    close = _wide(UP=_trend(0.002), B=_trend(0.0005), C=_trend(0.0003), D=_trend(0.0001), E=_trend(0.00005))
+    elig = pd.DataFrame(True, index=close.index, columns=close.columns)
+    elig["UP"] = False  # not in the index that day: cannot be picked, and does not crowd others out
+    picked, _ = signals.momentum_signal(close, elig)
+    assert not bool(picked.iloc[-1]["UP"]) and bool(picked.iloc[-1]["B"])
 
 
 def test_ideas_endpoint(monkeypatch):

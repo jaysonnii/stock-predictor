@@ -30,16 +30,21 @@ PULL_VOL_WINDOW = 63
 PULL_Z = -1.0
 
 
-def momentum_signal(close: pd.DataFrame):
-    """Returns (picked, ret_12_1). picked is True where the momentum rule fires."""
+def momentum_signal(close: pd.DataFrame, eligible: pd.DataFrame = None):
+    """
+    Returns (picked, ret_12_1). picked is True where the momentum rule fires.
+    eligible (same shape, optional) limits the ranking to stocks that could be
+    picked that day, for example S&P 500 members on that date.
+    """
     ret = close.shift(MOM_SKIP) / close.shift(MOM_LOOKBACK) - 1
     ma_long = close.rolling(MA_LONG, min_periods=MA_LONG).mean()
-    rank = ret.rank(axis=1, pct=True)
-    picked = (rank > 1 - MOM_TOP_FRACTION) & (close > ma_long) & ret.notna()
+    ranked = ret if eligible is None else ret.where(eligible)
+    rank = ranked.rank(axis=1, pct=True)
+    picked = (rank > 1 - MOM_TOP_FRACTION) & (close > ma_long) & ranked.notna()
     return picked, ret
 
 
-def pullback_signal(close: pd.DataFrame):
+def pullback_signal(close: pd.DataFrame, eligible: pd.DataFrame = None):
     """Returns (picked, ret_1m, z). z is the last month's move in units of a normal month."""
     ma_long = close.rolling(MA_LONG, min_periods=MA_LONG).mean()
     ma_short = close.rolling(MA_SHORT, min_periods=MA_SHORT).mean()
@@ -48,6 +53,8 @@ def pullback_signal(close: pd.DataFrame):
     move = log_close - log_close.shift(PULL_WINDOW)
     z = move / (daily_sd * np.sqrt(PULL_WINDOW))
     picked = (close > ma_long) & (ma_short > ma_long) & (z <= PULL_Z)
+    if eligible is not None:
+        picked &= eligible
     ret_1m = close / close.shift(PULL_WINDOW) - 1
     return picked, ret_1m, z
 

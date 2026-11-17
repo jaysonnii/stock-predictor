@@ -24,12 +24,21 @@ each past date.
 Survivorship bias: the group is today's survivors, so all results are
 likely better than reality, the average stock included.
 
+Point in time mode (--pit), the free partial fix for survivorship bias:
+the group on each date is the stocks that were in the S&P 500 that day
+(research/pit_universe.py), instead of 70 of today's survivors. Companies
+that went bankrupt or were bought out are mostly missing from Yahoo, so the
+run also reports what share of members on each date had usable prices.
+
 Usage (from the project folder):
-    python -m research.signal_backtest
-Writes signal_record.json in the project folder, which the site reads.
+    python -m research.signal_backtest          # 70 of today's large stocks
+    python -m research.signal_backtest --pit    # S&P 500 members on each date
+Writes signal_record.json in the project folder, which the site reads. A
+--pit run keeps the last survivor run's numbers in it for comparison.
 """
 import json
 import os
+import sys
 from datetime import date
 
 import numpy as np
@@ -46,6 +55,7 @@ BENCHMARK = "SPY"
 HORIZONS = (63, 252)
 STEP_DAYS = 21
 MIN_TICKERS = 30
+MIN_TICKERS_PIT = 100
 MIN_PICKS = 3
 LUCK_RUNS = 500
 LUCK_SEED = 2026
@@ -64,15 +74,18 @@ def load_closes():
     return close, spy
 
 
-def score(picked: pd.DataFrame, close: pd.DataFrame, spy: pd.Series, horizon: int) -> pd.DataFrame:
+def score(picked: pd.DataFrame, close: pd.DataFrame, spy: pd.Series, horizon: int,
+          eligible: pd.DataFrame = None, min_tickers: int = MIN_TICKERS) -> pd.DataFrame:
     fwd = close.shift(-horizon) / close - 1
     spy_fwd = spy.shift(-horizon) / spy - 1
     enough = close.rolling(MOM_LOOKBACK + 1).count().ge(MOM_LOOKBACK + 1)
+    if eligible is not None:
+        enough &= eligible
     rows, keep = [], []
     for i in range(MOM_LOOKBACK, len(close.index) - horizon, STEP_DAYS):
         d = close.index[i]
         valid = enough.iloc[i] & fwd.iloc[i].notna()
-        if valid.sum() < MIN_TICKERS or np.isnan(spy_fwd.iloc[i]):
+        if valid.sum() < min_tickers or np.isnan(spy_fwd.iloc[i]):
             continue
         picks = picked.iloc[i] & valid
         if picks.sum() < MIN_PICKS:
@@ -127,17 +140,41 @@ def summarize(res: pd.DataFrame) -> dict:
     }
 
 
-def main():
-    close, spy = load_closes()
-    print(f"Stocks loaded: {close.shape[1]}, dates {close.index.min().date()} to {close.index.max().date()}")
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    pit = "--pit" in argv
+    eligible, min_tickers, coverage = None, MIN_TICKERS, None
+    if pit:
+        from research import pit_universe
+        spy = _load_long(BENCHMARK)
+        close, member, eligible = pit_universe.build(spy.index)
+        coverage = pit_universe.coverage_by_year(member, eligible)
+        min_tickers = MIN_TICKERS_PIT
+        print(f"\nS&P 500 companies ever in the index since 1996: {member.shape[1]}; with Yahoo prices: {close.shape[1]}")
+        print("Share of members on each date with usable prices (the rest are mostly companies that failed or were bought out):")
+        print(coverage[["members", "covered", "covered_pct"]].to_string())
+    else:
+        close, spy = load_closes()
+    print(f"\nStocks loaded: {close.shape[1]}, dates {close.index.min().date()} to {close.index.max().date()}")
 
-    mom, _ = momentum_signal(close)
-    pull, _, _ = pullback_signal(close)
+    mom, _ = momentum_signal(close, eligible)
+    pull, _, _ = pullback_signal(close, eligible)
+    if pit:
+        avg_cov = float(coverage["covered_pct"].mean())
+        group = "S&P 500 members on each date since 1996 (point in time)"
+        caveat = (f"Point in time S&P 500 members, so the group is not today's winners. Yahoo is missing most companies "
+                  f"that later failed or were bought out (on average {100 - avg_cov:.0f}% of members on a date), "
+                  "so results are likely still a little better than reality. Overlapping windows mean far fewer "
+                  "independent results than test dates.")
+    else:
+        group = f"{close.shape[1]} large US stocks in research/universe.py"
+        caveat = ("Survivorship bias: the group is today's survivors, so real results are likely worse. "
+                  "Overlapping windows mean far fewer independent results than test dates.")
     record = {
         "tested_on": str(date.today()),
-        "group": f"{close.shape[1]} large US stocks in research/universe.py",
-        "caveat": "Survivorship bias: the group is today's survivors, so real results are likely worse. "
-                  "Overlapping windows mean far fewer independent results than test dates.",
+        "mode": "point_in_time" if pit else "survivors",
+        "group": group,
+        "caveat": caveat,
         "signals": {
             "momentum": {"rule": f"Top {int(MOM_TOP_FRACTION * 100)}% by return from 12 to 1 months ago, "
                                  f"and above the 200 day average (skips the last {MOM_SKIP} days)"},
@@ -150,7 +187,7 @@ def main():
     for name, picked in (("momentum", mom), ("pullback", pull)):
         record["signals"][name]["testable"] = True
         for h in HORIZONS:
-            res = score(picked, close, spy, h)
+            res = score(picked, close, spy, h, eligible, min_tickers)
             if res.empty:
                 print(f"{name} {h}d: no scorable dates")
                 continue
@@ -162,6 +199,23 @@ def main():
             print(f"  vs SPY: {s['avg_vs_spy_pct']:+.2f} pts, ahead in {s['years_ahead_of_spy']} of {s['years']} years")
             print(f"  luck check: random picks did as well {s['random_as_good_pct']}% of the time (95th percentile {s['random_95th_pct']:+.2f})")
 
+    if pit:
+        record["coverage_by_year"] = {int(y): float(v) for y, v in coverage["covered_pct"].items()}
+        try:
+            with open(OUT_PATH) as f:
+                prev = json.load(f)
+            prev = prev.get("survivor_run") if prev.get("mode") == "point_in_time" else prev
+            if prev:
+                record["survivor_run"] = {k: prev[k] for k in ("tested_on", "group", "signals") if k in prev}
+        except (OSError, ValueError):
+            pass
+        if record.get("survivor_run"):
+            print("\nSame test on 70 of today's survivors, for comparison (252 days, vs the average stock):")
+            for name in ("momentum", "pullback"):
+                old = record["survivor_run"]["signals"].get(name, {}).get("252d")
+                new = record["signals"][name].get("252d")
+                if old and new:
+                    print(f"  {name}: survivors {old['avg_vs_average_pct']:+.2f} -> point in time {new['avg_vs_average_pct']:+.2f}")
     with open(OUT_PATH, "w") as f:
         json.dump(record, f, indent=2)
     print(f"\nSaved {os.path.abspath(OUT_PATH)}")

@@ -67,8 +67,25 @@ Decision: momentum stays and is labeled "held up in testing". Pullback no longer
 
 A signal is labeled "held up in testing" only when, at 252 days, it beat the average stock, beat 95% of shuffled runs, and was ahead in at least half the years. This rule was set before any real results were seen. Analyst targets and value/growth cannot be tested with yfinance and are labeled untested.
 
+## 6. Survivorship bias, free partial fix (`pit_universe.py`)
+
+The tests above use stocks that are alive and large today. These reruns use the stocks that were in the S&P 500 on each date since 1996, from the free daily membership list at github.com/fja05680/sp500, with Yahoo prices.
+
+| Script | What it tests | Result |
+|---|---|---|
+| `signal_backtest.py --pit` | Momentum and pullback, ranked only among that day's S&P 500 members, scored against the average member | Run Nov 16, 2026, 1996 to 2026. **Momentum's edge disappeared:** +0.03 pts a year vs the average member at 252 days (survivors had +3.83), shuffled picks as good 46.4% of the time; +0.22 at 63 days (20.4%). **Pullback still nothing:** +0.89 at 252 days (21.4%), +0.05 at 63 days (39.6%). Neither passes the held up rule, so neither picks ideas on the site |
+| `evaluate_calibration_pit.py` | The site's exact range method (vol-scaled bootstrap plus shrink k) on every member, only on dates it was a member | Run Nov 16, 2026, about 600 stocks, 116,000 to 120,000 forecasts per horizon. 80% range inside 82.1 / 83.5 / 87.7% at 63 / 126 / 252 days. Worst years 68.5 (1999, 63d), 58.2 (2008, 126d), 62.3 (2008, 252d). Misses lean low: below 10.9 vs above 6.9 (63d), 10.9 vs 5.6 (126d), 9.1 vs 3.2 (252d). PIT top decile only 4.8 / 3.6 / 3.2%, so the top of the range is optimistic. The site's hit rates, worst years and notes now use these numbers; k was not changed |
+
+Coverage: 750 of the 1,209 companies ever in the index had Yahoo prices (625 with usable membership periods after the reused ticker guard). Share of members on a date with usable prices: 38% in 1996, 52% in 2005, 64% in 2010, 83% in 2019, 98% in 2026. Early years are still biased toward companies that survived. A few Yahoo series have bad data (zero prices or broken splits), which shows up as overflow warnings; it affects a handful of stocks.
+
+Takeaways: (1) the survivor group made momentum look like a 3.8 pt a year edge that is not there among S&P 500 members; (2) the ranges are about right overall, but the original 10 year test never saw 2008, so it understated how bad a crash year is; (3) misses lean to the downside, likely because stocks often join the index after strong runs and the bootstrap carries that drift forward.
+
+What it fixes: the group on each date is what was actually large then. What it does not: Yahoo only has tickers that still trade, so most members that later failed or were bought out are missing. Both scripts print the share of members on each date with usable prices. A membership period is used only if Yahoo's history for that ticker starts before the period does, to avoid reused tickers pulling in a different company's prices.
+
+Rule, set before running: a tested signal picks ideas on the site only while it passes the "held up" rule in the latest `signal_record.json`.
+
 ## Known limits
 
-- **Survivorship bias.** Every universe here is made of companies that still trade today. Companies that failed are missing, so real downside misses are likely worse than measured. Fixing this needs price history that includes delisted stocks, which Yahoo does not provide.
+- **Survivorship bias.** Sections 1 to 5 use companies that still trade today. Section 6 removes the "today's winners" part with point in time S&P 500 membership, but companies that failed or were bought out are still mostly missing. A full fix needs price history that includes delisted stocks, which Yahoo does not provide.
 - **Small effective sample.** Monthly forecasts with overlapping windows, across stocks that move together, carry far less independent information than the forecast counts suggest.
 - **Stop tuning on this history.** Each further adjustment tested on the same years raises the chance of fitting noise.

@@ -3,12 +3,14 @@ Price ranges and risk figures for one ticker, using the method chosen in the
 calibration work (see claude/range-calibration-findings.md in the project).
 
 Method: volatility-scaled block bootstrap (calibration.vol_scaled_horizon_returns),
-then a fixed walk-forward shrink factor k per horizon. k and the hit rates
-below come from walk-forward tests on 93 tickers and are fixed here, not
-refitted per request.
+then a fixed walk-forward shrink factor k per horizon. k was chosen in walk-forward
+tests on 93 tickers (Oct 20, 2026) and is fixed here, not refitted per request.
 
-Hit rates are the share of real outcomes that landed inside each range in the
-walk-forward test years. They are what the dashboard shows next to each range.
+Hit rates are the share of real outcomes that landed inside each range. Since
+Nov 16, 2026 they come from the point in time test
+(research/evaluate_calibration_pit.py): the same method scored on every stock
+while it was in the S&P 500, 1996 to 2026, which includes 2008. That test is
+still a little kind, because Yahoo is missing most members that later failed.
 """
 import time
 
@@ -30,26 +32,29 @@ RANGE_SEED = 42
 CACHE_SECONDS = 60 * 60
 _cache = {}
 
-# From the Oct 20, 2026 calibration and shrink tests.
+# k from the Oct 20, 2026 shrink tests. Hit rates and worst years from the
+# Nov 16, 2026 point in time S&P 500 test (1996 to 2026).
 HORIZONS = {
     63: {
         "label": "3 months", "k": 0.88,
-        "hit_rate": {50: 50.5, 80: 80.0, 90: 89.6},
-        "worst_year_80": 76.2, "worst_year": 2020,
-        "note": None,
+        "hit_rate": {50: 53.5, 80: 82.1, 90: 90.5},
+        "worst_year_80": 68.5, "worst_year": 1999,
+        "note": "When the price lands outside the range, it is below it about 1.6 times as often as above.",
     },
     126: {
         "label": "6 months", "k": 0.87,
-        "hit_rate": {50: 55.4, 80: 83.3, 90: 91.3},
-        "worst_year_80": 76.8, "worst_year": 2020,
-        "note": None,
+        "hit_rate": {50: 56.1, 80: 83.5, 90: 91.0},
+        "worst_year_80": 58.2, "worst_year": 2008,
+        "note": "In a crash like 2008 the range missed about 4 times in 10. "
+                "When the price lands outside the range, it is below it about twice as often as above.",
     },
     252: {
         "label": "1 year", "k": 1.00,
-        "hit_rate": {50: 57.0, 80: 84.6, 90: 92.2},
-        "worst_year_80": 70.2, "worst_year": 2021,
-        "note": "Misses at this horizon fall mostly below the range, "
-                "especially when a downturn starts from calm conditions.",
+        "hit_rate": {50: 62.7, 80: 87.7, 90: 93.4},
+        "worst_year_80": 62.3, "worst_year": 2008,
+        "note": "When the price lands outside the range, it is below it about 3 times as often as above, "
+                "especially when a downturn starts from calm conditions, as in 2007 and 2008. "
+                "The top of the range is optimistic.",
     },
 }
 RANGES = {50: (0.25, 0.75), 80: (0.10, 0.90), 90: (0.05, 0.95)}

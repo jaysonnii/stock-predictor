@@ -1593,11 +1593,12 @@
   // ideas worth a look: a rule based screen from /ideas, with each signal's tested record
   let ideasData = null, ideasAt = 0, ideasLoading = false;
 
-  function signalVerdict(s) {
+  function signalVerdict(s, mode) {
     if (s.used === false) {
       const b = s['252d'];
       return { cls: 'weak', label: 'Dropped', text: (s.note || 'Not used to pick ideas.')
-        + (b ? ` Tested ${b.from.slice(0, 4)} to ${b.to.slice(0, 4)}: ${b.avg_vs_average_pct > 0 ? '+' : ''}${fmt(b.avg_vs_average_pct, 1)} pts a year vs the average stock over 12 months.` : '') };
+        + (b ? ` Tested ${b.from.slice(0, 4)} to ${b.to.slice(0, 4)}: ${b.avg_vs_average_pct > 0 ? '+' : ''}${fmt(b.avg_vs_average_pct, 1)} pts a year vs the average stock over 12 months, `
+          + `and shuffled random picks did as well ${fmt(b.random_as_good_pct, 0)}% of the time.` : '') };
     }
     if (s.testable === false) return { cls: '', label: 'Not testable', text: `Can't be tested: ${s.why}. Treat as untested.` };
     const a = s['63d'], b = s['252d'];
@@ -1610,14 +1611,16 @@
       text: `${yrs}: picks vs the average stock ${a.avg_vs_average_pct > 0 ? '+' : ''}${fmt(a.avg_vs_average_pct, 1)} pts over 3 months, `
         + `${b.avg_vs_average_pct > 0 ? '+' : ''}${fmt(b.avg_vs_average_pct, 1)} over 12 months. Ahead in ${b.years_ahead_of_average} of ${b.years} years `
         + `(worst ${b.worst_year}, ${fmt(b.worst_year_vs_average_pct, 1)}). Shuffled random picks did as well ${fmt(b.random_as_good_pct, 0)}% of the time.`
-        + (held ? ' A modest, lumpy edge: it has bad years, and it does not mean any one pick will go up. Measured on companies that survived, so real results are likely a bit worse.' : ''),
+        + (held ? ' A modest, lumpy edge: it has bad years, and it does not mean any one pick will go up. '
+          + (mode === 'point_in_time' ? 'Measured on S&P 500 members at the time; companies that later failed are mostly missing, so real results are likely a little worse.'
+            : 'Measured on companies that survived, so real results are likely a bit worse.') : ''),
     };
   }
 
   function renderIdeas() {
     const d = ideasData;
     $('sigRecord').innerHTML = Object.entries(d.signals).map(([k, s]) => {
-      const v = signalVerdict(s);
+      const v = signalVerdict(s, d.test_mode);
       return `<div class="sbox"><b>${esc(s.label)}</b><span class="verdict ${v.cls}">${esc(v.label)}</span>
         ${s.rule ? `<div class="txt" style="margin-bottom:6px">Rule: ${esc(s.rule)}.</div>` : ''}<div class="txt">${esc(v.text)}</div></div>`;
     }).join('');
