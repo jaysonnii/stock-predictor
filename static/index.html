@@ -461,7 +461,7 @@
           <h2>How the ranges are built</h2>
           <div style="display:grid;gap:8px;padding-top:12px;font-size:14px">
             <div>Past daily returns are rescaled to today's volatility and resampled in one month blocks, thousands of times.</div>
-            <div>Each range was checked walk forward on 93 stocks and ETFs: forecasts made with only the data available at the time, scored against what actually happened.</div>
+            <div>Each range was checked walk forward: forecasts made with only the data available at the time, scored against what actually happened. The hit rates shown come from about 600 stocks while they were in the S&P 500, 1996 to 2026, so they include crashes like 2008.</div>
             <div class="hint">There is no price target here. A point forecast model was tested and did not beat a simple average, so it is not shown. Past prices only, no dividends, not financial advice.</div>
           </div>
         </div>
@@ -1142,7 +1142,7 @@
         </div>
         <div class="rnote">The 80% range held ${fmt(g[80].historical_hit_rate_pct, 0)}% of the time in tests, ${fmt(h.worst_year_hit_rate_80_pct, 0)}% in the worst year (${h.worst_year}).${h.note ? ' ' + esc(h.note) : ''}</div>
       </div>`;
-    }).join('') + `<div class="hint" style="margin-top:14px">Tested walk forward on 93 large US stocks and ETFs that still trade today, so real misses are likely somewhat worse. Not financial advice.</div>`;
+    }).join('') + `<div class="hint" style="margin-top:14px">Hit rates come from a walk forward test on about 600 stocks while they were in the S&P 500, 1996 to 2026, including 2008. Many companies that later failed or were bought out have no free price data, so real misses are likely a little worse. Not financial advice.</div>`;
   }
 
   // recent news: Yahoo headlines shown for context only
