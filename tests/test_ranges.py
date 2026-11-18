@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
@@ -61,6 +62,7 @@ def test_ranges_endpoint(monkeypatch):
     close = make_close()
     frame = pd.DataFrame({"Open": close, "High": close, "Low": close, "Close": close, "Volume": 1})
     monkeypatch.setattr(ranges, "fetch_stock_data", lambda ticker, period: frame)
+    monkeypatch.setattr(ranges, "market_center", lambda: 0.0003)
     ranges._cache.clear()
 
     response = TestClient(main.app).get("/ranges", params={"ticker": "test"})
@@ -75,8 +77,41 @@ def test_ranges_endpoint_rejects_short_history(monkeypatch):
     close = make_close(days=200)
     frame = pd.DataFrame({"Open": close, "High": close, "Low": close, "Close": close, "Volume": 1})
     monkeypatch.setattr(ranges, "fetch_stock_data", lambda ticker, period: frame)
+    monkeypatch.setattr(ranges, "market_center", lambda: 0.0003)
     ranges._cache.clear()
 
     response = TestClient(main.app).get("/ranges", params={"ticker": "NEW"})
     assert response.status_code == 404
     assert "history" in response.json()["detail"]
+
+
+
+def test_market_center_sets_the_middle_not_the_swings():
+    close = make_close(seed=4)
+    own = forecast_ranges(close)
+    mkt = forecast_ranges(close, center=0.0003)
+    assert mkt["growth_basis"] == "market" and own["growth_basis"] == "own"
+    assert mkt["growth_annual_pct"] == pytest.approx(7.9, abs=0.1)
+    for o, m in zip(own["horizons"], mkt["horizons"]):
+        o80 = next(r for r in o["ranges"] if r["level"] == 80)
+        m80 = next(r for r in m["ranges"] if r["level"] == 80)
+        # same width in log terms: only the center moves
+        ow = np.log(1 + o80["high_return_pct"] / 100) - np.log(1 + o80["low_return_pct"] / 100)
+        mw = np.log(1 + m80["high_return_pct"] / 100) - np.log(1 + m80["low_return_pct"] / 100)
+        assert mw == pytest.approx(ow, abs=0.01)
+
+
+def test_market_center_reuses_last_value_when_yahoo_fails(monkeypatch):
+    idx = pd.bdate_range("1993-01-29", periods=3000)
+    spy = pd.DataFrame({"Close": 100 * np.exp(np.cumsum(np.full(3000, 0.0004)))}, index=idx)
+    ranges._market_cache.clear()
+    monkeypatch.setattr(ranges, "fetch_stock_data", lambda ticker, period: spy)
+    assert ranges.market_center() == pytest.approx(0.0004)
+    ranges._market_cache["center"] = (0, ranges._market_cache["center"][1])  # expired
+    def down(ticker, period):
+        raise RuntimeError("Yahoo down")
+    monkeypatch.setattr(ranges, "fetch_stock_data", down)
+    assert ranges.market_center() == pytest.approx(0.0004)
+    ranges._market_cache.clear()
+    with pytest.raises(RuntimeError):
+        ranges.market_center()

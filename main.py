@@ -61,6 +61,8 @@ class RangesResponse(BaseModel):
     current_price: float
     as_of: str
     current_volatility_annual_pct: float
+    growth_basis: str
+    growth_annual_pct: Optional[float]
     horizons: list[HorizonRange]
     method: str
 

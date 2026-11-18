@@ -439,7 +439,7 @@
         <div class="top-inline">
           <div>
             <h2>Likely ranges</h2>
-            <div class="hint" id="rHint">Ranges, not predictions. Built from this stock's own past returns, scaled to today's volatility.</div>
+            <div class="hint" id="rHint">Ranges, not predictions. Built from this stock's own past swings, scaled to today's volatility, and centered on the market's long-run growth.</div>
           </div>
           <div class="rlegend">
             <span><i style="background:rgba(2,151,222,0.75)"></i>50% range</span>
@@ -1122,7 +1122,9 @@
     const byLevel = h => Object.fromEntries(h.ranges.map(x => [x.level, x]));
     const pct1 = n => (n == null || isNaN(n)) ? '—' : (n > 0 ? '+' : '') + fmt(n, 1) + '%';
 
-    $('rHint').textContent = `Ranges, not predictions. Built from this stock's own past returns, scaled to today's volatility (${fmt(r.current_volatility_annual_pct, 1)}% a year). Data as of ${r.as_of}.`;
+    $('rHint').textContent = `Ranges, not predictions. Built from this stock's own past swings, scaled to today's volatility (${fmt(r.current_volatility_annual_pct, 1)}% a year)`
+      + (r.growth_basis === 'market' && r.growth_annual_pct != null ? `, and centered on the market's long-run growth (about ${fmt(r.growth_annual_pct, 1)}% a year), not this stock's own past.` : '.')
+      + ` Data as of ${r.as_of}.`;
     $('rangesBody').className = '';
     $('rangesBody').innerHTML = r.horizons.map(h => {
       const g = byLevel(h);

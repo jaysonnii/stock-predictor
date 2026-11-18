@@ -50,6 +50,7 @@ EWMA_LAMBDA = 0.94       # RiskMetrics daily standard
 VOL_HALF_LIFE = 63       # days for today's vol gap to the long run to halve
 EWMA_WARMUP = 20         # days to seed the EWMA before trusting it
 METHODS = ("bootstrap", "vol")
+DRIFTS = ("own", "market", "zero")  # where the middle of the range grows from (vol method only)
 
 
 def _log_returns(close: pd.Series) -> pd.Series:
@@ -119,10 +120,14 @@ def vol_scaled_horizon_returns(
     n_sims: int = N_SIMS,
     block_days: int = BLOCK_DAYS,
     half_life: float = VOL_HALF_LIFE,
+    drift: float = None,
 ) -> np.ndarray:
     """
     Simulated simple returns over `horizon` days from vol-scaled shocks.
     `past_sigma[s]` must be the vol known before day s.
+    `drift` is the daily log growth for the middle of the range. None (the
+    live default) uses the stock's own past average; an experiment can pass
+    the market's average or 0 instead. The swings are the stock's own either way.
     """
     r = np.asarray(past_log_returns, dtype=float)
     sig = np.asarray(past_sigma, dtype=float)
@@ -139,7 +144,8 @@ def vol_scaled_horizon_returns(
     var_path = long_run_var + (sigma_now ** 2 - long_run_var) * phi ** steps
 
     cz = np.concatenate([[0.0], np.cumsum(z)])
-    total = np.full(n_sims, mu * horizon)
+    center = mu if drift is None else float(drift)
+    total = np.full(n_sims, center * horizon)
     start_day = 0
     while start_day < horizon:
         length = min(block_days, horizon - start_day)
@@ -161,19 +167,43 @@ def calibrate_ticker(
     block_days: int = BLOCK_DAYS,
     seed: int = SEED,
     method: str = "bootstrap",
+    drift: str = "own",
+    market_close: pd.Series = None,
 ) -> pd.DataFrame:
     """
     One row per forecast date: the forecast quantiles, the actual return,
     its PIT value, and whether it fell inside each range.
+
+    drift (vol method only): "own" uses the stock's past average growth (the
+    live method), "market" uses the average daily log return of market_close
+    over all of its history up to the forecast date (long-run market growth),
+    "zero" assumes no growth. All use only data available on the forecast date.
     """
     if method not in METHODS:
         raise ValueError(f"method must be one of {METHODS}")
+    if drift not in DRIFTS:
+        raise ValueError(f"drift must be one of {DRIFTS}")
+    if drift != "own" and method != "vol":
+        raise ValueError("drift options apply to the vol method only")
+    if drift == "market" and market_close is None:
+        raise ValueError("drift='market' needs market_close")
     log_ret = _log_returns(close)
     values = log_ret.values
     dates = log_ret.index
     rng = np.random.default_rng(seed)
     if method == "vol":
         sigma_before, sigma_after = ewma_volatility(values)
+    if drift == "market":
+        # Market log return on each of the stock's days (prices carried forward over gaps).
+        # Long-run market growth known on each forecast date: the market's average
+        # daily log return from its first price up to that date.
+        m = market_close.copy()
+        m.index = _naive_dates(m.index)
+        m = m[m > 0].sort_index()
+        m = m[~m.index.duplicated()]
+        log_m = np.log(m.values)
+        pos = np.searchsorted(m.index.values, dates.values, side="right") - 1  # last market day on or before each date
+        market_center = np.where(pos >= 1, (log_m[np.maximum(pos, 0)] - log_m[0]) / np.maximum(pos, 1), 0.0)
 
     rows = []
     # Position i means "forecast made at the close of dates[i]".
@@ -182,9 +212,13 @@ def calibrate_ticker(
         past = values[: i + 1]
         if method == "vol":
             # Skip the EWMA warm-up days, whose vol estimate is unreliable.
+            if drift == "market":
+                center = float(market_center[i])
+            else:
+                center = 0.0 if drift == "zero" else None
             sims = vol_scaled_horizon_returns(
                 past[EWMA_WARMUP:], sigma_before[EWMA_WARMUP : i + 1],
-                sigma_after[i], horizon, rng, n_sims, block_days,
+                sigma_after[i], horizon, rng, n_sims, block_days, drift=center,
             )
         else:
             sims = bootstrap_horizon_returns(past, horizon, rng, n_sims, block_days)

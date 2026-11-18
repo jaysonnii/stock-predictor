@@ -21,7 +21,8 @@ The most useful part of this project is what the tests ruled out. Each idea belo
 - **Price targets did not work.** The project started as a Random Forest model predicting future prices. It never beat simple baselines: on AMZN it lost to "the stock earns its average return" in every test period, and a model pooled across 93 stocks and ETFs lost to "same as SPY" in all four periods. It was removed from the app; the code stays in `research/`.
 - **Ranges did work,** and can be checked honestly: if a range is labeled 80%, about 80% of real outcomes should land inside it. That is what the dashboard reports.
 - **A momentum stock screen looked good, then didn't.** On 70 of today's large stocks, picking the top 20% by past-year return beat the average stock by +3.8 points a year, and random picks matched that only 2.4% of the time. Rerun on the stocks that were actually in the S&P 500 on each date since 1996, the edge fell to +0.03 points a year, and random picks did as well 46% of the time. The first result came from testing on companies already known to have won. The screen no longer picks stocks in the app.
-- **Bad years were worse than the first test showed.** The original range test covered about 10 years and never saw 2008. On the point-in-time S&P 500 group, the 6-month 80% range held 84% of the time overall but only 58% in 2008, and misses land below the range 1.6 to 3 times as often as above. The app now shows those numbers.
+- **The middle of each range was too optimistic, and that part is fixed.** Centering each stock on its own past growth gave a 1 year median forecast of +13.1% when the real median was +11.1%, which made stocks with a big past run, like Nvidia, look far too rosy. Centering on the market's long-run growth instead gave +10.5%, made misses more balanced, and passed every check set before the test. The ranges now work this way.
+- **Bad years were worse than the first test showed.** The original range test covered about 10 years and never saw 2008. On the point-in-time S&P 500 group, the 6-month 80% range held 84% of the time overall but only 58% in 2008, and misses landed below the range 1.6 to 3 times as often as above. The app now shows the honest numbers.
 
 Every experiment, its exact numbers and its decision are in [research/README.md](research/README.md). Rules for what counts as "working" were set before results were seen.
 
@@ -43,8 +44,9 @@ Every experiment, its exact numbers and its decision are in [research/README.md]
 1. Download about 10 years of daily prices through yfinance.
 2. Divide each past daily return by the volatility at the time (EWMA, lambda 0.94), turning history into shock sizes with the market regime removed.
 3. Resample those shocks in one-month blocks thousands of times, rescaled to today's volatility, which drifts back toward the stock's long-run level with a 63-day half-life.
-4. Apply a small fixed shrink at 3 and 6 months, chosen in walk-forward tests, where the raw ranges ran slightly wide.
-5. For a portfolio, every holding draws the **same** historical blocks, so stocks fall together in the simulation. Treating holdings as independent made portfolio ranges about 30% too narrow in testing.
+4. Center the result on the market's long-run growth (SPY's average since 1993), not the stock's own past average, so a big past run is not projected forward.
+5. Apply a small fixed shrink at 3 and 6 months, chosen in walk-forward tests, where the raw ranges ran slightly wide.
+6. For a portfolio, every holding draws the **same** historical blocks, so stocks fall together in the simulation. Treating holdings as independent made portfolio ranges about 30% too narrow in testing.
 
 ### Walk-forward results
 
@@ -52,13 +54,13 @@ Share of real outcomes inside the 80% range (target 80):
 
 | Horizon | Single stocks | Worst year | Portfolios | Worst year |
 |---|---:|---:|---:|---:|
-| 3 months | 82.1 | 68.5 (1999) | 82.3 | 68.3 (2018) |
-| 6 months | 83.5 | 58.2 (2008) | 82.2 | 72.1 (2019) |
-| 1 year | 87.7 | 62.3 (2008) | 85.8 | 66.0 (2021) |
+| 3 months | 82.4 | 67.7 (1999) | 82.3 | 68.3 (2018) |
+| 6 months | 84.2 | 59.3 (2008) | 82.2 | 72.1 (2019) |
+| 1 year | 88.7 | 63.8 (1999) | 85.8 | 66.0 (2021) |
 
 - **Single stocks:** about 600 stocks while they were in the S&P 500, 1996 to 2026, about 116,000 to 120,000 forecasts per horizon. Membership comes from the free daily list at [fja05680/sp500](https://github.com/fja05680/sp500).
-- **Portfolios:** 40 random equal-weight portfolios of 6 large stocks and ETFs, about 10 years. This test has not been rerun on the point-in-time group yet.
-- When a single-stock range misses, the price lands below it 1.6 times (3 months) to 3 times (1 year) as often as above, and the top of the 1 year range is optimistic.
+- **Portfolios:** 40 random equal-weight portfolios of 6 large stocks and ETFs, about 10 years. This test has not been rerun on the point-in-time group yet, and portfolio ranges still center on each holding's own growth.
+- When a single-stock range misses, the price lands below it 1.4 times (3 months) to 2.4 times (1 year) as often as above, and the top of the 1 year range is still optimistic.
 
 ## Limitations
 

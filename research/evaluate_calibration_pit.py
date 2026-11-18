@@ -45,13 +45,14 @@ def apply_shrink(res: pd.DataFrame, k: float) -> pd.DataFrame:
     return add_interval_columns(out)
 
 
-def run_horizon(horizon: int, close: pd.DataFrame, usable: pd.DataFrame) -> pd.DataFrame:
+def run_horizon(horizon: int, close: pd.DataFrame, usable: pd.DataFrame,
+                drift: str = "own", market: pd.Series = None, label: str = None) -> pd.DataFrame:
     k = SITE[horizon]["k"]
     frames = []
     cols = [t for t in close.columns if usable[t].any()]
     for i, t in enumerate(cols):
         s = close[t].dropna()
-        res = calibrate_ticker(s, horizon=horizon, seed=SEED + i, method="vol")
+        res = calibrate_ticker(s, horizon=horizon, seed=SEED + i, method="vol", drift=drift, market_close=market)
         if res.empty:
             continue
         member_then = usable[t].reindex(pd.DatetimeIndex(res["Date"])).fillna(False).values
@@ -62,7 +63,7 @@ def run_horizon(horizon: int, close: pd.DataFrame, usable: pd.DataFrame) -> pd.D
         res["Ticker"] = t
         frames.append(res)
         if (i + 1) % 100 == 0:
-            print(f"  {horizon} days: {i + 1} of {len(cols)} stocks scored")
+            print(f"  {label or ''}{horizon} days: {i + 1} of {len(cols)} stocks scored")
     return pd.concat(frames, ignore_index=True)
 
 

@@ -84,6 +84,29 @@ What it fixes: the group on each date is what was actually large then. What it d
 
 Rule, set before running: a tested signal picks ideas on the site only while it passes the "held up" rule in the latest `signal_record.json`.
 
+## 7. Neutral growth experiment (`evaluate_drift_pit.py`)
+
+The point in time test showed the ranges lean optimistic: misses land below the range 1.6 to 3 times as often as above, and at 1 year only 3.2% of outcomes reach the top tenth of the forecast. The ranges center each stock on its own past average growth (`mu` in `vol_scaled_horizon_returns`), so a stock with a huge past run gets a very optimistic middle.
+
+Change tested: center the range on the market's long-run growth instead, SPY's average daily log return over all its history up to the forecast date. Each stock keeps its own swings and volatility, and the shrink k is unchanged. A first version averaged the market only over the stock's own history window; a dry run on made-up prices showed short windows make that average swing wildly, so it was changed before any real results were seen.
+
+Rule, set before running. Adopt market growth for the live site only if all hold on the point in time S&P 500 test:
+
+1. Misses get more balanced: the gap between below and above the 80% range shrinks at 126 and 252 days.
+2. 80% coverage stays between 78 and 90 at 63, 126 and 252 days.
+3. No worst year is more than 2 points lower than with own growth.
+4. At 252 days the PIT top decile moves closer to 10.
+
+Zero growth can be run with `--with-zero` for context only and cannot be adopted.
+
+| Script | Result |
+|---|---|
+| `evaluate_drift_pit.py` | Run Nov 18, 2026. **All nine checks passed; adopted for the single-stock ranges.** 80% coverage own -> market: 82.1 -> 82.4 (63d), 83.5 -> 84.2 (126d), 87.7 -> 88.7 (252d). Below vs above gap: 4.0 -> 2.7, 5.3 -> 3.8, 5.9 -> 4.7. Worst years: 68.5 -> 67.7 (1999), 58.2 -> 59.3 (2008), 62.3 -> 63.8. Median 1 year forecast +13.1% -> +10.5% against +11.1% actual. PIT top decile at 252d 3.2 -> 3.3, effectively unchanged |
+
+Reading: the center was the smaller part of the problem. Market growth fixed the optimistic middle (the Nvidia case) and made misses more balanced, but the top tenth of the 1 year forecast still catches only 3.3% of outcomes, so the upper tail itself is too long. That is a separate question for a future test. The portfolio ranges use their own simulation and were not part of this test, so they still center on each holding's own growth.
+
+The "avg width" row was unusable (values like 10^53): a few broken Yahoo price histories produce infinite ranges. They do not change the inside, below and above counts or the medians, but a data quality filter is needed before averages like width mean anything.
+
 ## Known limits
 
 - **Survivorship bias.** Sections 1 to 5 use companies that still trade today. Section 6 removes the "today's winners" part with point in time S&P 500 membership, but companies that failed or were bought out are still mostly missing. A full fix needs price history that includes delisted stocks, which Yahoo does not provide.

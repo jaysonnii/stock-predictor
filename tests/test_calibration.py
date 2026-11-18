@@ -1,7 +1,8 @@
+import pytest
 import numpy as np
 import pandas as pd
 
-from calibration import bootstrap_horizon_returns, calibrate_ticker, pit_deciles, summarize
+from calibration import bootstrap_horizon_returns, calibrate_ticker, pit_deciles, summarize, vol_scaled_horizon_returns
 
 
 def make_prices(days: int = 2000, daily_sd: float = 0.01, seed: int = 0) -> pd.Series:
@@ -136,3 +137,54 @@ def test_unknown_method_is_rejected():
     import pytest
     with pytest.raises(ValueError):
         calibrate_ticker(make_prices(days=800), method="magic")
+
+
+# drift options for the neutral growth experiment
+
+def _series(daily, n=900, start=100.0, noise=0.01, seed=0):
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range("2015-01-01", periods=n)
+    return pd.Series(start * np.exp(np.cumsum(daily + rng.normal(0, noise, n))), index=idx)
+
+
+def test_vol_scaled_drift_sets_the_middle():
+    rng = np.random.default_rng(0)
+    r = rng.normal(0.002, 0.01, 800)          # strong own uptrend
+    sig = np.full(800, 0.01)
+    own = vol_scaled_horizon_returns(r, sig, 0.01, 252, np.random.default_rng(1))
+    zero = vol_scaled_horizon_returns(r, sig, 0.01, 252, np.random.default_rng(1), drift=0.0)
+    assert np.median(own) > 0.4                # carries ~0.2% a day forward
+    assert abs(np.median(np.log1p(zero))) < 0.03
+    # same swings either way: only the center moves
+    assert np.std(np.log1p(own)) == pytest.approx(np.std(np.log1p(zero)), rel=1e-9)
+
+
+def test_market_drift_uses_the_market_not_the_stock():
+    stock = _series(0.003, seed=1)             # rocket
+    flat_market = _series(0.0, noise=0.0)      # market that never moves
+    own = calibrate_ticker(stock, horizon=63, method="vol", seed=5)
+    mkt = calibrate_ticker(stock, horizon=63, method="vol", seed=5, drift="market", market_close=flat_market)
+    assert own["Q50"].median() > 0.1
+    assert abs(mkt["Q50"].median()) < 0.02
+
+
+def test_market_drift_has_no_lookahead():
+    stock = _series(0.001, seed=2)
+    market = _series(0.0004, seed=3)
+    base = calibrate_ticker(stock, horizon=63, method="vol", seed=7, drift="market", market_close=market)
+    future_changed = market.copy()
+    future_changed.iloc[-200:] *= 3.0           # rewrite the market's last 200 days
+    after = calibrate_ticker(stock, horizon=63, method="vol", seed=7, drift="market", market_close=future_changed)
+    cutoff = market.index[-201 - 1]
+    early = base["Date"] < cutoff
+    pd.testing.assert_frame_equal(base[early].reset_index(drop=True), after[early].reset_index(drop=True))
+
+
+def test_drift_option_checks():
+    s = _series(0.0)
+    with pytest.raises(ValueError):
+        calibrate_ticker(s, horizon=63, method="vol", drift="market")       # no market given
+    with pytest.raises(ValueError):
+        calibrate_ticker(s, horizon=63, method="bootstrap", drift="zero")   # vol method only
+    with pytest.raises(ValueError):
+        calibrate_ticker(s, horizon=63, method="vol", drift="sideways")
