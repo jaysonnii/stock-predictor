@@ -770,6 +770,8 @@
     <div id="gateBody"></div>
   </div>
 </div>
+<!-- your holdings, goal and beliefs from personal.json on this computer (never on GitHub) -->
+<script src="/personal.js"></script>
 <script>
   const $ = id => document.getElementById(id);
   const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -793,14 +795,12 @@
   // holdings are {ticker, shares, costBasis} where costBasis is the total you paid.
   // Starting positions from your Robinhood account (Oct 19, 2026). They are used
   // only until you change the list, which is saved under holdings_v2.
-  const SEED_HOLDINGS = [
-    
-    
-    
-    
-    
-    
-  ];
+  // Personal data comes from personal.json on this computer (see personal.example.json),
+  // so the public code on GitHub holds no one's holdings, goal or beliefs.
+  const PERSONAL = (typeof window.PERSONAL === 'object' && window.PERSONAL) || {};
+  const SEED_HOLDINGS = (Array.isArray(PERSONAL.holdings) ? PERSONAL.holdings : [])
+    .filter(h => h && typeof h.ticker === 'string' && Number(h.shares) > 0)
+    .map(h => ({ ticker: h.ticker.toUpperCase().trim(), shares: Number(h.shares), costBasis: Number(h.costBasis) || 0 }));
   let holdings = load('holdings_v2', null) ?? SEED_HOLDINGS;
   let etfWatch = load('etfWatch', []);
   let selected = load('selected', 'AAPL');
@@ -1670,10 +1670,15 @@
   }
 
   // $1M goal: tracker, a banner on every tab, and a daily check in you must finish before using the site
-  const CORE_BELIEFS = [];
+  const CORE_BELIEFS = (Array.isArray(PERSONAL.beliefs) ? PERSONAL.beliefs : []).filter(b => typeof b === 'string' && b.trim()).map(b => b.trim());
+  const PG = (PERSONAL.goal && typeof PERSONAL.goal === 'object') ? PERSONAL.goal : {};
+  const defaultTarget = Number(PG.target) > 0 ? Number(PG.target) : 1000000;
+  const defaultDeadline = /^\d{4}-\d{2}-\d{2}$/.test(PG.deadline || '') ? PG.deadline : `${new Date().getFullYear() + 7}-01-01`;
+  const defaultStatement = (typeof PG.statement === 'string' && PG.statement.trim().length >= 10) ? PG.statement.trim()
+    : `I will have $${defaultTarget.toLocaleString('en-US')} by ${new Date(defaultDeadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`;
   let goal = load('goal_v1', null) || {
-    target: 1000000, deadline: '2035-01-01', returnPct: 7,
-    statement: 'I will have $1,000,000 by my deadline.',
+    target: defaultTarget, deadline: defaultDeadline, returnPct: Number(PG.returnPct) >= 0 ? Number(PG.returnPct) : 7,
+    statement: defaultStatement,
     checkins: [],  // {date: 'YYYY-MM-DD', netWorth, action, belief}
   };
   const saveGoal = () => save('goal_v1', goal);
@@ -1717,7 +1722,7 @@
     if (s.nw != null) list.push(`<em>${fmt(s.pct, 1)}%</em> of the way. That means <em>${fmt(100 - s.pct, 1)}%</em> is still missing.`);
     if (s.pace != null && s.pace < 0) list.push(`You are <em>${m0(-s.pace)}</em> behind the pace. Still comfortable?`);
     if (s.pace != null && s.pace >= 0) list.push(`Ahead of pace by <em>${m0(s.pace)}</em>. Do not get soft now.`);
-    list.push(`${esc(CORE_BELIEFS[new Date().getDate() % CORE_BELIEFS.length])}. <em>Did today prove it?</em>`);
+    if (CORE_BELIEFS.length) list.push(`${esc(CORE_BELIEFS[new Date().getDate() % CORE_BELIEFS.length])}. <em>Did today prove it?</em>`);
     list.push('Still not a millionaire. <em>Interesting.</em>');
     return list;
   }
@@ -1854,7 +1859,7 @@
     document.body.classList.add('gated');
     $('gate').classList.remove('hidden');
     const s = goalStats();
-    const belief = CORE_BELIEFS[Math.floor(Math.random() * CORE_BELIEFS.length)];
+    const belief = CORE_BELIEFS.length ? CORE_BELIEFS[Math.floor(Math.random() * CORE_BELIEFS.length)] : null;
     const entry = { date: today(), netWorth: null, action: '', belief };
     const dots = n => `<div class="dots">${[1, 2, 3, 4].map(i => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>`;
     const body = $('gateBody');
@@ -1912,7 +1917,7 @@
       $('gateStep').textContent = 'Daily check in · step 4 of 4';
       const last = goal.checkins[goal.checkins.length - 1];
       body.innerHTML = dots(4) + `<h2 class="q">What will you do <em>today</em>?</h2>
-        <p>One concrete thing that moves the number. Today's belief: <b style="color:var(--ink)">${esc(belief)}</b>.${last && last.action ? ` Last time you said: "${esc(last.action)}". Did you?` : ''}</p>
+        <p>One concrete thing that moves the number. ${belief ? `Today's belief: <b style="color:var(--ink)">${esc(belief)}</b>.` : ''}${last && last.action ? ` Last time you said: "${esc(last.action)}". Did you?` : ''}</p>
         <textarea id="gAct" maxlength="300" placeholder="Call two sellers about the duplex, move $500 to the brokerage..."></textarea>
         <div class="row" style="margin-top:12px"><button class="btn" id="gDone">Lock it in</button></div><div class="err" id="gErr4"></div>`;
       $('gAct').focus();

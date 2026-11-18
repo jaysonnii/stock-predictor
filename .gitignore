@@ -14,3 +14,6 @@ reports/
 
 # daily $1M check ins (net worth), kept only on this computer
 goal_data/
+
+# your own holdings, goal and beliefs, kept only on this computer
+personal.json

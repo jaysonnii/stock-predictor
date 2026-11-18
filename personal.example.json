@@ -1,0 +1,17 @@
+{
+  "_readme": "Copy this file to personal.json (same folder) and fill in your own numbers. personal.json is in .gitignore, so it stays on your computer and never goes to GitHub. The site uses it only to start you off: holdings and goal settings you change on the site are then saved in your browser.",
+  "holdings": [
+    { "ticker": "VOO", "shares": 2.5, "costBasis": 1250.00 },
+    { "ticker": "MSFT", "shares": 1, "costBasis": 400.00 }
+  ],
+  "goal": {
+    "target": 1000000,
+    "deadline": "2035-01-01",
+    "returnPct": 7,
+    "statement": "I will have $1,000,000 by January 2035."
+  },
+  "beliefs": [
+    "Write your first core belief here",
+    "Add as many as you like, or leave this list empty"
+  ]
+}

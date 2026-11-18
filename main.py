@@ -12,6 +12,7 @@ from data import fetch_stock_data
 from ranges import ranges_for_ticker
 from portfolio import portfolio_ranges
 from news import news_for_ticker
+import json
 import ideas as ideas_mod
 import goal_log
 
@@ -209,6 +210,27 @@ def get_ideas():
         return ideas_mod.ideas()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Ideas unavailable: {str(e)}")
+
+
+PERSONAL_PATH = "personal.json"
+
+
+@app.get("/personal.js", include_in_schema=False)
+def personal_js():
+    """
+    Your own holdings, goal and core beliefs, read from personal.json on this
+    computer. personal.json is in .gitignore, so it never goes to GitHub; the
+    public code starts blank. See personal.example.json for the format.
+    """
+    try:
+        with open(PERSONAL_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
+    return Response(f"window.PERSONAL = {json.dumps(data)};", media_type="application/javascript",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.get("/goal/checkins")
