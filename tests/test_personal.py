@@ -44,3 +44,4 @@ def test_public_code_has_no_personal_data():
     assert re.search(r"\{\s*ticker:\s*'[A-Z.]+',\s*shares:\s*[0-9]", html) is None
     assert re.search(r"CORE_BELIEFS\s*=\s*\[\s*['\"]", html) is None   # no hard-coded beliefs
     assert re.search(r"deadline:\s*'\d{4}-\d{2}-\d{2}'", html) is None   # no hard-coded goal date
+    assert "getFullYear() + 7" not in html                                  # no made-up default deadline

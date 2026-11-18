@@ -1683,9 +1683,11 @@
   const CORE_BELIEFS = (Array.isArray(PERSONAL.beliefs) ? PERSONAL.beliefs : []).filter(b => typeof b === 'string' && b.trim()).map(b => b.trim());
   const PG = (PERSONAL.goal && typeof PERSONAL.goal === 'object') ? PERSONAL.goal : {};
   const defaultTarget = Number(PG.target) > 0 ? Number(PG.target) : 1000000;
-  const defaultDeadline = /^\d{4}-\d{2}-\d{2}$/.test(PG.deadline || '') ? PG.deadline : `${new Date().getFullYear() + 7}-01-01`;
+  // no deadline until the person sets one (personal.json or the goal settings)
+  const defaultDeadline = /^\d{4}-\d{2}-\d{2}$/.test(PG.deadline || '') ? PG.deadline : null;
   const defaultStatement = (typeof PG.statement === 'string' && PG.statement.trim().length >= 10) ? PG.statement.trim()
-    : `I will have $${defaultTarget.toLocaleString('en-US')} by ${new Date(defaultDeadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`;
+    : `I will have $${defaultTarget.toLocaleString('en-US')}`
+      + (defaultDeadline ? ` by ${new Date(defaultDeadline + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : '') + '.';
   let goal = load('goal_v1', null) || {
     target: defaultTarget, deadline: defaultDeadline, returnPct: Number(PG.returnPct) >= 0 ? Number(PG.returnPct) : 7,
     statement: defaultStatement,
@@ -1719,19 +1721,19 @@
   function goalStats() {
     const last = goal.checkins[goal.checkins.length - 1];
     const nw = last ? last.netWorth : null;
-    const end = new Date(goal.deadline + 'T00:00:00');
-    const days = Math.max(0, Math.ceil((end - new Date()) / 864e5));
-    const months = Math.max(1, days / 30.44);
+    const end = goal.deadline ? new Date(goal.deadline + 'T00:00:00') : null;
+    const days = end ? Math.max(0, Math.ceil((end - new Date()) / 864e5)) : null;
+    const months = days != null ? Math.max(1, days / 30.44) : null;
     const i = goal.returnPct / 100 / 12;
     let monthly = null;
-    if (nw != null) {
+    if (nw != null && months != null) {
       const grown = nw * Math.pow(1 + i, months);
       monthly = i > 0 ? Math.max(0, (goal.target - grown) * i / (Math.pow(1 + i, months) - 1)) : Math.max(0, (goal.target - nw) / months);
     }
     // the steady growth path from your first check in to the target on the deadline
     const first = goal.checkins[0];
     let pathToday = null, pace = null;
-    if (first && first.netWorth > 0 && nw != null) {
+    if (end && first && first.netWorth > 0 && nw != null) {
       const t0 = new Date(first.date + 'T00:00:00'), span = end - t0;
       const f = span > 0 ? Math.min(1, Math.max(0, (new Date() - t0) / span)) : 1;
       pathToday = first.netWorth * Math.pow(goal.target / first.netWorth, f);
@@ -1747,7 +1749,8 @@
   }
 
   function taunts(s) {
-    const list = ['Are you at <em>$1,000,000</em> yet?', `<em>${fmt(s.days, 0)}</em> days left. The clock does not care how you feel.`];
+    const list = [`Are you at <em>${m0(goal.target)}</em> yet?`];
+    if (s.days != null) list.push(`<em>${fmt(s.days, 0)}</em> days left. The clock does not care how you feel.`);
     if (s.monthly != null) list.push(`You need <em>${m0(s.monthly)}</em> a month. What did you do yesterday?`);
     if (s.nw != null) list.push(`<em>${fmt(s.pct, 1)}%</em> of the way. That means <em>${fmt(100 - s.pct, 1)}%</em> is still missing.`);
     if (s.pace != null && s.pace < 0) list.push(`You are <em>${m0(-s.pace)}</em> behind the pace. Still comfortable?`);
@@ -1767,7 +1770,7 @@
       bar.addEventListener('click', () => document.querySelector('.nav button[data-view="goal"]').click());
       document.querySelector('main .top').after(bar);
     }
-    bar.innerHTML = `<b>${m0(s.left)}</b><span>to go</span><span class="hint">${fmt(s.days, 0)} days left</span>`
+    bar.innerHTML = `<b>${m0(s.left)}</b><span>to go</span>` + (s.days != null ? `<span class="hint">${fmt(s.days, 0)} days left</span>` : '')
       + (s.monthly != null ? `<span class="hint">${m0(s.monthly)} a month needed</span>` : '')
       + `<span class="gb-q">Are you at ${m0(goal.target)} yet?</span>`;
   }
@@ -1782,13 +1785,13 @@
     $('gTarget').textContent = m0(goal.target);
     const t = taunts(s);
     $('gTaunt').innerHTML = t[Math.floor(Math.random() * t.length)];
-    $('gDays').textContent = fmt(s.days, 0);
-    $('gDeadline').textContent = 'by ' + new Date(goal.deadline + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    $('gDays').textContent = s.days != null ? fmt(s.days, 0) : '—';
+    $('gDeadline').textContent = goal.deadline ? 'by ' + new Date(goal.deadline + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'set a deadline below';
     $('gMonthly').textContent = m0(s.monthly);
-    $('gMonthlyPill').textContent = `at ${fmt(goal.returnPct, 1)}% a year growth`;
+    $('gMonthlyPill').textContent = goal.deadline ? `at ${fmt(goal.returnPct, 1)}% a year growth` : 'needs a deadline';
     $('gPace').textContent = s.pace == null ? '—' : (s.pace >= 0 ? '+' : '-') + m0(Math.abs(s.pace));
     $('gPace').className = 'value ' + (s.pace == null ? '' : cls(s.pace));
-    $('gPacePill').textContent = s.pace == null ? 'needs two check ins' : s.pace >= 0 ? 'ahead of pace' : 'behind pace';
+    $('gPacePill').textContent = s.pace == null ? (goal.deadline ? 'needs two check ins' : 'needs a deadline') : s.pace >= 0 ? 'ahead of pace' : 'behind pace';
     $('gPacePill').className = 'pill ' + (s.pace == null ? '' : cls(s.pace));
     $('gStreak').textContent = `${s.streak} day${s.streak === 1 ? '' : 's'}`;
     $('gStreakPill').textContent = s.streak ? 'do not break it' : 'start one today';
@@ -1796,7 +1799,7 @@
     renderGoalLog();
     renderGoalOnOff();
 
-    $('gsTarget').value = goal.target; $('gsDeadline').value = goal.deadline;
+    $('gsTarget').value = goal.target; $('gsDeadline').value = goal.deadline || '';
     $('gsReturn').value = goal.returnPct; $('gsStatement').value = goal.statement;
 
     // chart: one point per day (latest check in that day) against the on time path
@@ -1808,8 +1811,8 @@
     $('goalChart').style.display = enough ? '' : 'none';
     if (goalChart) { goalChart.destroy(); goalChart = null; }
     if (!enough || typeof Chart === 'undefined') return;
-    const first = goal.checkins[0], t0 = new Date(first.date + 'T00:00:00'), end = new Date(goal.deadline + 'T00:00:00');
-    const path = days.map(d => first.netWorth > 0 ? first.netWorth * Math.pow(goal.target / first.netWorth, Math.min(1, (new Date(d + 'T00:00:00') - t0) / (end - t0))) : null);
+    const first = goal.checkins[0], t0 = new Date(first.date + 'T00:00:00'), end = goal.deadline ? new Date(goal.deadline + 'T00:00:00') : null;
+    const path = days.map(d => end && first.netWorth > 0 ? first.netWorth * Math.pow(goal.target / first.netWorth, Math.min(1, (new Date(d + 'T00:00:00') - t0) / (end - t0))) : null);
     goalChart = new Chart($('goalChart'), {
       type: 'line',
       data: { labels: days, datasets: [
@@ -1908,7 +1911,7 @@
     const step1 = (msg) => {
       $('gateStep').textContent = 'Daily check in · step 1 of 4';
       body.innerHTML = dots(1) + `<h2 class="q" id="gateQ">Are you at <em>${m0(goal.target)}</em> yet?</h2>
-        <p>${missed ? 'You skipped yesterday. The goal did not skip you. ' : ''}${fmt(s.days, 0)} days left${s.monthly != null ? `, and you need ${m0(s.monthly)} a month` : ''}.</p>
+        <p>${missed ? 'You skipped yesterday. The goal did not skip you. ' : ''}${s.days != null ? `${fmt(s.days, 0)} days left${s.monthly != null ? `, and you need ${m0(s.monthly)} a month` : ''}.` : 'No deadline set yet. Add one on the goal tab to see the pace you need.'}</p>
         <div class="row"><button class="btn" id="gNo">No, not yet</button><button class="btn ghost" id="gYes">Yes</button></div>
         <div class="err">${msg || ''}</div>`;
       $('gNo').onclick = () => step2(false);
