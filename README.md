@@ -65,6 +65,7 @@ Share of real outcomes inside the 80% range (target 80):
 ## Limitations
 
 - **Survivorship bias, partly fixed.** The point-in-time test uses the companies that were in the S&P 500 at the time, not today's winners. But free price data is missing most members that later failed or were bought out (coverage is under 60% before 2008), so real misses are likely a little worse than measured.
+- **The upside is still too generous.** Even after centering on market growth, only about 3% of 1 year outcomes land in the top tenth of the forecast, where 10% should. Big gains past the top of a range are rarer than the range suggests.
 - **Past prices only.** The ranges use no news, earnings or economic data.
 - **Small effective sample.** Overlapping forecast windows across correlated stocks carry less independent information than the forecast counts suggest.
 - **Not tested on everything.** Small caps and concentrated portfolios were not part of the tests.
@@ -148,6 +149,7 @@ The experiments behind every number above, and how to rerun them, are in [resear
 ```bash
 python -m research.signal_backtest --pit
 python -m research.evaluate_calibration_pit
+python -m research.evaluate_drift_pit
 ```
 
 The point-in-time scripts download history for about 1,200 companies the first time, which takes 10 to 20 minutes.
