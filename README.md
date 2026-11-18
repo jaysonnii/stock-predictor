@@ -54,13 +54,13 @@ Share of real outcomes inside the 80% range (target 80):
 
 | Horizon | Single stocks | Worst year | Portfolios | Worst year |
 |---|---:|---:|---:|---:|
-| 3 months | 82.4 | 67.7 (1999) | 82.3 | 68.3 (2018) |
-| 6 months | 84.2 | 59.3 (2008) | 82.2 | 72.1 (2019) |
-| 1 year | 88.7 | 63.8 (1999) | 85.8 | 66.0 (2021) |
+| 3 months | 82.4 | 67.6 (1999) | 82.3 | 68.3 (2018) |
+| 6 months | 84.2 | 59.2 (2008) | 82.2 | 72.1 (2019) |
+| 1 year | 88.7 | 64.0 (1999) | 85.8 | 66.0 (2021) |
 
 - **Single stocks:** about 600 stocks while they were in the S&P 500, 1996 to 2026, about 116,000 to 120,000 forecasts per horizon. Membership comes from the free daily list at [fja05680/sp500](https://github.com/fja05680/sp500).
 - **Portfolios:** 40 random equal-weight portfolios of 6 large stocks and ETFs, about 10 years. This test has not been rerun on the point-in-time group yet, and portfolio ranges still center on each holding's own growth.
-- When a single-stock range misses, the price lands below it 1.4 times (3 months) to 2.4 times (1 year) as often as above, and the top of the 1 year range is still optimistic.
+- When a single-stock range misses, the price lands below it 1.3 times (3 months) to 2.4 times (1 year) as often as above, and the top of the 1 year range is still optimistic.
 
 ## Limitations
 

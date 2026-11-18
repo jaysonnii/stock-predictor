@@ -9,10 +9,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from data import fetch_stock_data
+import ranges as ranges_mod
 from ranges import ranges_for_ticker
 from portfolio import portfolio_ranges
 from news import news_for_ticker
 import json
+import pandas as pd
 import ideas as ideas_mod
 import goal_log
 
@@ -284,6 +286,12 @@ def download_goal_checkins():
     )
 
 
+HISTORY_OFFSETS = {
+    "1mo": pd.DateOffset(months=1), "3mo": pd.DateOffset(months=3), "6mo": pd.DateOffset(months=6),
+    "1y": pd.DateOffset(years=1), "2y": pd.DateOffset(years=2), "5y": pd.DateOffset(years=5),
+}
+
+
 @app.get("/history", response_model=HistoryResponse)
 def get_history(ticker: str, period: str = "1y"):
     """Return historical closing prices for a ticker."""
@@ -292,11 +300,15 @@ def get_history(ticker: str, period: str = "1y"):
     if period not in valid_periods:
         raise HTTPException(status_code=400, detail=f"Invalid period. Choose from: {valid_periods}")
     try:
-        df = fetch_stock_data(ticker, period=period)
+        # Sliced from the same cached 10 year series the ranges use, so a page load asks
+        # Yahoo once per ticker instead of once per chart (Yahoo rate limits shared servers).
+        close = ranges_mod.get_close(ticker).dropna()
+        start = close.index[-1] - HISTORY_OFFSETS[period]
+        close = close[close.index >= start]
         return {
             "ticker": ticker,
-            "dates": [str(d.date()) for d in df.index],
-            "prices": [round(p, 2) for p in df["Close"].tolist()],
+            "dates": [str(d.date()) for d in close.index],
+            "prices": [round(float(p), 2) for p in close.tolist()],
             "period": period,
         }
     except ValueError as e:

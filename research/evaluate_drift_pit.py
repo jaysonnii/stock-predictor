@@ -87,7 +87,7 @@ def main():
     with_zero = "--with-zero" in sys.argv
     os.makedirs(REPORTS_DIR, exist_ok=True)
     spy = _load_long("SPY")
-    close, member, usable = pit_universe.build(spy.index)
+    close, member, usable = pit_universe.build(spy.index, clean="--no-clean" not in sys.argv)
     variants = ["own", "market"] + (["zero"] if with_zero else [])
     out = {v: {} for v in variants}
     for h in HORIZONS:
@@ -115,7 +115,8 @@ def main():
         print("Zero growth is shown for context only and cannot be adopted.")
 
     with open(os.path.join(REPORTS_DIR, "drift_pit_summary.json"), "w") as f:
-        json.dump({"variants": {v: {str(h): out[v][h] for h in HORIZONS} for v in variants},
+        json.dump({"data_quality": {"clean": "--no-clean" not in sys.argv, "dropped": pit_universe.LAST_QUALITY_REPORT},
+                   "variants": {v: {str(h): out[v][h] for h in HORIZONS} for v in variants},
                    "adopt_market": bool(adopt), "checks": [{"check": t, "pass": bool(ok)} for t, ok in checks]}, f, indent=2)
     print(f"Saved {os.path.join(REPORTS_DIR, 'drift_pit_summary.json')}")
 

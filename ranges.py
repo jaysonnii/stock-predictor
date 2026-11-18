@@ -42,25 +42,26 @@ CACHE_SECONDS = 60 * 60
 _cache = {}
 
 # k from the Oct 20, 2026 shrink tests. Hit rates and worst years from the
-# Nov 18, 2026 point in time S&P 500 test with market growth (1996 to 2026).
+# Nov 18, 2026 point in time S&P 500 test with market growth (1996 to 2026),
+# rerun after the data quality filter dropped 19 broken price histories.
 HORIZONS = {
     63: {
         "label": "3 months", "k": 0.88,
         "hit_rate": {50: 53.6, 80: 82.4, 90: 90.7},
-        "worst_year_80": 67.7, "worst_year": 1999,
-        "note": "When the price lands outside the range, it is below it about 1.4 times as often as above.",
+        "worst_year_80": 67.6, "worst_year": 1999,
+        "note": "When the price lands outside the range, it is below it about 1.3 times as often as above.",
     },
     126: {
         "label": "6 months", "k": 0.87,
-        "hit_rate": {50: 56.3, 80: 84.2, 90: 91.6},
-        "worst_year_80": 59.3, "worst_year": 2008,
+        "hit_rate": {50: 56.2, 80: 84.2, 90: 91.5},
+        "worst_year_80": 59.2, "worst_year": 2008,
         "note": "In a crash like 2008 the range missed about 4 times in 10. "
                 "When the price lands outside the range, it is below it about 1.6 times as often as above.",
     },
     252: {
         "label": "1 year", "k": 1.00,
-        "hit_rate": {50: 63.3, 80: 88.7, 90: 94.1},
-        "worst_year_80": 63.8, "worst_year": 1999,
+        "hit_rate": {50: 63.2, 80: 88.7, 90: 94.2},
+        "worst_year_80": 64.0, "worst_year": 1999,
         "note": "When the price lands outside the range, it is below it about 2.4 times as often as above, "
                 "especially when a downturn starts from calm conditions, as in 2007 and 2008. "
                 "The top of the range is optimistic: big gains past it are rarer than it suggests.",
@@ -178,7 +179,15 @@ def get_close(ticker: str) -> pd.Series:
     hit = _close_cache.get(ticker)
     if hit and time.time() - hit[0] < CACHE_SECONDS:
         return hit[1]
-    close = fetch_stock_data(ticker, period=HISTORY_PERIOD)["Close"]
+    try:
+        close = fetch_stock_data(ticker, period=HISTORY_PERIOD)["Close"]
+    except ValueError:
+        raise
+    except Exception:
+        # Yahoo often rate limits shared servers like Render; reuse the last good copy if there is one
+        if hit:
+            return hit[1]
+        raise
     _close_cache[ticker] = (time.time(), close)
     return close
 

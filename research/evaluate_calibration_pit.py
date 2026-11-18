@@ -97,7 +97,7 @@ def main():
     horizons = [int(a) for a in sys.argv[1:] if a.isdigit()] or list(DEFAULT_HORIZONS)
     os.makedirs(REPORTS_DIR, exist_ok=True)
     spy = _load_long("SPY")
-    close, member, usable = pit_universe.build(spy.index)
+    close, member, usable = pit_universe.build(spy.index, clean="--no-clean" not in sys.argv)
     cov = pit_universe.coverage_by_year(member, usable)
     print(f"\nEver in the S&P 500 since 1996: {member.shape[1]}; with usable Yahoo prices: {int(usable.any().sum())}")
     print(f"Average share of members on a date with usable prices: {cov['covered_pct'].mean():.0f}%")

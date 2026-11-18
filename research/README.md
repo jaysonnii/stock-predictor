@@ -107,6 +107,22 @@ Reading: the center was the smaller part of the problem. Market growth fixed the
 
 The "avg width" row was unusable (values like 10^53): a few broken Yahoo price histories produce infinite ranges. They do not change the inside, below and above counts or the medians, but a data quality filter is needed before averages like width mean anything.
 
+## 8. Data quality filter (`data_quality.py`)
+
+Some Yahoo price histories are broken, most often a split recorded wrong so the price jumps 10x overnight. In a dry run a single fake x12 day made a stock's 1 year range 60,000 times too wide. A frozen (stale) price only widened ranges a little. On the real data the filter removed the overflow warnings, but the average width was still around 10^53 at 1 year, so broken histories were not the whole cause: a few remaining forecasts are still extreme. Hit rates are not affected (a range either contains the price or it does not), but the average width stays unusable until those cases are found.
+
+Since Nov 18, 2026 the point in time scripts drop a stock, and list it with its reason, if its history has any zero, negative or missing price; any one-day move above +900% or below -90%; or 20 or more trading days in a row at exactly the same price. The rules were fixed before rerunning and are not tuned. Dropped stocks still count as members, so coverage figures treat them as missing. Run any script with `--no-clean` to reproduce the old behaviour.
+
+Plan, set before the clean rerun of `evaluate_drift_pit.py`: if the market growth rule still passes, the site's hit rates and worst years are updated to the clean numbers (a correction of measurement, not a re-tune). If it no longer passes, the single-stock ranges go back to own growth.
+
+| Script | Result |
+|---|---|
+| `evaluate_drift_pit.py` (clean) | Run Nov 18, 2026. Dropped 19 of 750 stocks. **All nine checks still pass; market growth stays.** Market growth, 80% coverage: 82.4 (63d), 84.2 (126d), 88.7 (252d), unchanged. Worst years: 67.6 (1999), 59.2 (2008), 64.0 (1999), each within 0.2 of the unclean run. 50% and 90% coverage moved by 0.1 at most. Site numbers updated to these. |
+
+What was dropped: 7 stocks for impossible one-day moves (MCIC +13,901%, MI +9,543%, NVR +2,633% when it came out of bankruptcy in 1993, and -91% to -99% drops on COMS, CPWR, DIGI and POM, mostly reused tickers with a different company's prices attached), 1 for a zero price (DEC) and 11 for frozen prices (AMCR, CRH, EFU, EP, FERG, HUBB, SII, STI, SW, USBC, plus the frozen tails of COMS, CPWR, DIGI and MCIC).
+
+One known false positive: EHC (HealthSouth, now Encompass Health) really did fall about 97% on Mar 26, 2003, when trading resumed after its accounting fraud came out. That is a genuine crash, exactly the kind of loss the ranges should be tested on, and the rule removed it. Leaving it out flatters the results by at most one stock in about 600, which is far below the 0.1 point changes above, so the rule is kept as set rather than re-tuned. A stock is also dropped whole even when only an early stretch is frozen (HUBB in 1993, CRH in 1994), which throws away good later data; that makes the sample smaller, not the results better.
+
 ## Known limits
 
 - **Survivorship bias.** Sections 1 to 5 use companies that still trade today. Section 6 removes the "today's winners" part with point in time S&P 500 membership, but companies that failed or were bought out are still mostly missing. A full fix needs price history that includes delisted stocks, which Yahoo does not provide.

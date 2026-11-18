@@ -165,11 +165,30 @@ def coverage_by_year(member: pd.DataFrame, usable: pd.DataFrame) -> pd.DataFrame
     return g.round(1)
 
 
-def build(index: pd.DatetimeIndex, refresh: bool = False, verbose: bool = True):
-    """Returns (close, member, usable): wide closes for all ever-members and the two masks."""
+LAST_QUALITY_REPORT = {}
+
+
+def build(index: pd.DatetimeIndex, refresh: bool = False, verbose: bool = True, clean: bool = True):
+    """
+    Returns (close, member, usable): wide closes for all ever-members and the two masks.
+    clean=True (the default since Nov 18, 2026) drops stocks with broken price data
+    (research/data_quality.py); dropped stocks still count as members, so coverage
+    figures include them as missing.
+    """
+    global LAST_QUALITY_REPORT
     member = membership_matrix(index, refresh)
     prices = load_prices(list(member.columns), verbose)
     close = pd.DataFrame({t: s for t, s in prices.items()}).reindex(index)
     usable = usable_mask(member, prices)
     cols = [c for c in member.columns if c in close.columns]
-    return close[cols], member, usable[cols]
+    close, usable = close[cols], usable[cols]
+    LAST_QUALITY_REPORT = {}
+    if clean:
+        from research import data_quality
+        total = close.shape[1]
+        close, usable, LAST_QUALITY_REPORT = data_quality.filter_wide(close, usable)
+        if verbose:
+            data_quality.print_report(LAST_QUALITY_REPORT, total)
+    elif verbose:
+        print("Data quality filter OFF (--no-clean): broken price histories are included.")
+    return close, member, usable

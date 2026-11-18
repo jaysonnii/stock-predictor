@@ -147,7 +147,7 @@ def main(argv=None):
     if pit:
         from research import pit_universe
         spy = _load_long(BENCHMARK)
-        close, member, eligible = pit_universe.build(spy.index)
+        close, member, eligible = pit_universe.build(spy.index, clean="--no-clean" not in argv)
         coverage = pit_universe.coverage_by_year(member, eligible)
         min_tickers = MIN_TICKERS_PIT
         print(f"\nS&P 500 companies ever in the index since 1996: {member.shape[1]}; with Yahoo prices: {close.shape[1]}")
