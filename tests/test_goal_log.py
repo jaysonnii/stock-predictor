@@ -12,6 +12,7 @@ client = TestClient(main.app)
 @pytest.fixture(autouse=True)
 def tmp_log(tmp_path, monkeypatch):
     monkeypatch.setattr(goal_log, "LOG_DIR", str(tmp_path / "goal_data"))
+    monkeypatch.setenv("GOAL_LOG", "1")  # as on your own computer
     return tmp_path
 
 
@@ -60,3 +61,21 @@ def test_csv_download():
     lines = r.text.strip().splitlines()
     assert lines[0] == "date,net_worth,what_i_will_do_today,belief"
     assert lines[1].startswith('2026-11-04,312400.0,"Said ""no"" to a new car, kept the cash"')
+
+
+def test_log_is_off_on_a_shared_server(tmp_path, monkeypatch):
+    """No personal.json and no GOAL_LOG, as on the hosted demo: nothing stored, nothing shown."""
+    monkeypatch.delenv("GOAL_LOG", raising=False)
+    monkeypatch.setattr(main, "PERSONAL_PATH", str(tmp_path / "missing.json"))
+    assert client.post("/goal/checkins", json=[entry()]).status_code == 404
+    assert client.get("/goal/checkins").status_code == 404
+    assert client.get("/goal/checkins.csv").status_code == 404
+    assert not (tmp_path / "goal_data").exists()
+
+
+def test_log_is_on_where_personal_json_exists(tmp_path, monkeypatch):
+    monkeypatch.delenv("GOAL_LOG", raising=False)
+    (tmp_path / "personal.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(main, "PERSONAL_PATH", str(tmp_path / "personal.json"))
+    assert client.post("/goal/checkins", json=[entry()]).json()["added"] == 1
+    assert client.get("/goal/checkins").json()["count"] == 1

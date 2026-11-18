@@ -215,6 +215,8 @@
   .goalbar b { font-family: var(--serif); font-weight: 400; font-size: 20px; letter-spacing: 0; }
   .goalbar .gb-q { margin-left: auto; color: var(--orange); font-weight: 600; }
   .goalbar:hover { border-color: var(--orange); }
+  .gonoff { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; padding: 18px 24px; }
+  .gonoff.off { border-color: rgba(2, 151, 222, 0.55); background: linear-gradient(90deg, rgba(2, 151, 222, 0.12), transparent); }
   .ghero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; padding: 32px; align-items: center; }
   .gbar { height: 14px; border-radius: 8px; background: rgba(150, 200, 235, 0.08); overflow: hidden; margin-top: 4px; }
   .gfill { height: 100%; width: 0; border-radius: 8px; background: linear-gradient(90deg, var(--blue), var(--orange)); transition: width 1s ease; }
@@ -482,6 +484,14 @@
 
     <!-- GOAL -->
     <section id="view-goal" class="view hidden">
+      <div class="card gonoff" id="gOnOff">
+        <div>
+          <div class="wlabel" id="gOnOffLabel">Daily check in</div>
+          <div id="gOnOffText" class="hint" style="font-size:14px"></div>
+        </div>
+        <button class="btn" type="button" id="gToggle">Turn on</button>
+      </div>
+
       <div class="card ghero">
         <div>
           <div class="wlabel">Left to go</div>
@@ -511,7 +521,7 @@
               <h2>Everything you said you would do</h2>
               <div class="hint" id="gLogHint">Every check in, newest first.</div>
             </div>
-            <a class="btn ghost" href="/goal/checkins.csv" download style="text-decoration:none">Download all</a>
+            <a class="btn ghost" id="gLogDownload" href="/goal/checkins.csv" download style="text-decoration:none">Download all</a>
           </div>
           <input id="gLogSearch" placeholder="Search your answers" autocomplete="off" style="width:100%;margin-top:12px">
           <div id="gLog" class="glogwrap"></div>
@@ -1682,6 +1692,26 @@
     checkins: [],  // {date: 'YYYY-MM-DD', netWorth, action, belief}
   };
   const saveGoal = () => save('goal_v1', goal);
+  // The daily check in is opt in. It stays on for anyone already using it (a personal.json
+  // goal, or check ins in this browser) and starts off for a new visitor to a hosted copy.
+  const goalEnabled = () => goal.enabled === true || (goal.enabled === undefined && (!!PERSONAL.goal || goal.checkins.length > 0));
+  function setGoalEnabled(on) {
+    goal.enabled = on;
+    saveGoal();
+    renderGoalBar();
+    renderGoalOnOff();
+    if (on && load('goal_lastGate', '') !== today()) openGate();
+  }
+  function renderGoalOnOff() {
+    const on = goalEnabled();
+    $('gOnOff').classList.toggle('off', !on);
+    $('gOnOffLabel').textContent = on ? 'Daily check in: on' : 'Daily check in: off';
+    $('gOnOffText').textContent = on
+      ? 'The first time you open the site each day, it asks where you stand and what you will do today before anything else.'
+      : 'Set your target and deadline below, then turn this on. Once a day, before you can use the site, it will ask if you are there yet, make you type your goal and commit to one thing for today.';
+    $('gToggle').textContent = on ? 'Turn off' : 'Turn on';
+    $('gToggle').className = on ? 'btn ghost' : 'btn';
+  }
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const parseMoney = s => { const n = Number(String(s).replace(/[^0-9.]/g, '')); return isFinite(n) && String(s).trim() !== '' ? n : null; };
   const m0 = n => n == null || isNaN(n) ? '—' : '$' + fmt(n, 0);
@@ -1728,6 +1758,7 @@
   }
 
   function renderGoalBar() {
+    if (!goalEnabled()) { const old = $('goalBar'); if (old) old.remove(); return; }
     const s = goalStats();
     let bar = $('goalBar');
     if (!bar) {
@@ -1763,6 +1794,7 @@
     $('gStreakPill').textContent = s.streak ? 'do not break it' : 'start one today';
 
     renderGoalLog();
+    renderGoalOnOff();
 
     $('gsTarget').value = goal.target; $('gsDeadline').value = goal.deadline;
     $('gsReturn').value = goal.returnPct; $('gsStatement').value = goal.statement;
@@ -1816,7 +1848,15 @@
   let goalSynced = null;
   async function syncGoalLog() {
     try {
-      const server = (await api('/goal/checkins')).checkins;
+      const res = await fetch('/goal/checkins');
+      if (res.status === 404) {  // shared server: the log file is off, nothing is sent
+        goalSynced = 'off';
+        $('gSync').textContent = 'On this site your check ins are kept only in this browser. Nothing is sent to the server.';
+        $('gLogDownload').classList.add('hidden');
+        return;
+      }
+      if (!res.ok) throw new Error('server error');
+      const server = (await res.json()).checkins;
       const have = new Set(goal.checkins.map(ckey));
       const fromServer = server.filter(c => !have.has(ckey(c)));
       const onServer = new Set(server.map(ckey));
@@ -1950,10 +1990,11 @@
   // the tab title nags you when you switch away
   const baseTitle = document.title;
   document.addEventListener('visibilitychange', () => {
-    document.title = document.hidden ? `Are you at ${m0(goal.target)} yet?` : baseTitle;
+    document.title = document.hidden && goalEnabled() ? `Are you at ${m0(goal.target)} yet?` : baseTitle;
   });
   // a new day while the page stays open brings the gate back
-  setInterval(() => { if (load('goal_lastGate', '') !== today() && $('gate').classList.contains('hidden')) openGate(); }, 60 * 1000);
+  setInterval(() => { if (goalEnabled() && load('goal_lastGate', '') !== today() && $('gate').classList.contains('hidden')) openGate(); }, 60 * 1000);
+  $('gToggle').addEventListener('click', () => setGoalEnabled(!goalEnabled()));
 
   // events
   document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click', () => {
@@ -2028,7 +2069,7 @@
   // start on holdings; watchlist prices and alerts are checked in the background on every tab
   renderGoalBar();
   syncGoalLog();
-  if (load('goal_lastGate', '') !== today()) openGate();
+  if (goalEnabled() && load('goal_lastGate', '') !== today()) openGate();
   renderPortfolio();
   refreshAllHoldings();
   if (watch.length) loadWatchAll(false);

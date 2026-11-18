@@ -233,16 +233,36 @@ def personal_js():
                     headers={"Cache-Control": "no-store"})
 
 
+GOAL_LOG_OFF = ("The check in log file is only kept on your own computer (it needs a personal.json "
+                "next to main.py). On a shared server it is off, so no one's net worth is stored or shown.")
+
+
+def goal_log_enabled() -> bool:
+    """
+    The check in log is one shared file with no accounts, so it only runs on a
+    personal computer: where personal.json exists, or GOAL_LOG=1 is set. On the
+    hosted demo neither is true, so visitors' net worth is never stored or served.
+    """
+    return os.path.exists(PERSONAL_PATH) or os.environ.get("GOAL_LOG") == "1"
+
+
+def _require_goal_log():
+    if not goal_log_enabled():
+        raise HTTPException(status_code=404, detail=GOAL_LOG_OFF)
+
+
 @app.get("/goal/checkins")
 def get_goal_checkins():
-    """Every daily $1M check in saved on this computer, oldest first."""
+    """Every daily $1M check in saved on this computer, oldest first. Off on shared servers."""
+    _require_goal_log()
     entries = goal_log.read_all()
     return {"count": len(entries), "checkins": entries}
 
 
 @app.post("/goal/checkins")
 def add_goal_checkins(entries: list[dict]):
-    """Save check ins. Ones already saved (same date and same words) are skipped."""
+    """Save check ins. Ones already saved (same date and same words) are skipped. Off on shared servers."""
+    _require_goal_log()
     if len(entries) > 5000:
         raise HTTPException(status_code=400, detail="Too many check ins at once.")
     try:
@@ -253,7 +273,8 @@ def add_goal_checkins(entries: list[dict]):
 
 @app.get("/goal/checkins.csv")
 def download_goal_checkins():
-    """The full check in log as a spreadsheet file."""
+    """The full check in log as a spreadsheet file. Off on shared servers."""
+    _require_goal_log()
     return Response(
         content=goal_log.to_csv(goal_log.read_all()),
         media_type="text/csv",
